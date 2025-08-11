@@ -58,7 +58,7 @@ func fetchTimeline(client *http.Client, config *Config, timelineType string) ([]
 		return nil, err
 	}
 
-	reqBody, err := json.Marshal(map[string]interface{}{"i": config.AccessToken, "limit": 30})
+	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken, "limit": 30})
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func createNote(client *http.Client, config *Config, text string) error {
 		return err
 	}
 
-	reqBody, err := json.Marshal(map[string]interface{}{"i": config.AccessToken, "text": text})
+	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken, "text": text})
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func createReaction(client *http.Client, config *Config, noteId string, reaction
 		return err
 	}
 
-	reqBody, err := json.Marshal(map[string]interface{}{"i": config.AccessToken, "noteId": noteId, "reaction": reaction})
+	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken, "noteId": noteId, "reaction": reaction})
 	if err != nil {
 		return err
 	}
