@@ -162,6 +162,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				m.mode = "timeline"
 				m.textarea.Reset()
+				return m, nil
 			}
 		}
 
@@ -278,13 +279,21 @@ func fetchTimeline(client *http.Client, config *Config, timelineType string) tea
 		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
-		if err != nil { return errorMsg{err: err} }
+		if err != nil {
+			return errorMsg{err: err}
+		}
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK { return errorMsg{err: fmt.Errorf("API request failed: %s", resp.Status)} }
+		if resp.StatusCode != http.StatusOK {
+			return errorMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
+		}
 		var notes []Note
-		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil { return errorMsg{err: err} }
+		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
+			return errorMsg{err: err}
+		}
 		items := make([]list.Item, len(notes))
-		for i, note := range notes { items[i] = item{note: note} }
+		for i, note := range notes {
+			items[i] = item{note: note}
+		}
 		return timelineLoadedMsg{items: items}
 	}
 }
@@ -296,9 +305,13 @@ func createNote(client *http.Client, config *Config, text string) tea.Cmd {
 		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
-		if err != nil { return notePostedMsg{err: err} }
+		if err != nil {
+			return notePostedMsg{err: err}
+		}
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK { return notePostedMsg{err: fmt.Errorf("API request failed: %s", resp.Status)} }
+		if resp.StatusCode != http.StatusOK {
+			return notePostedMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
+		}
 		return notePostedMsg{err: nil}
 	}
 }
@@ -310,7 +323,9 @@ func createReaction(client *http.Client, config *Config, noteId string, reaction
 		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
-		if err != nil { return reactionResultMsg{err: err} }
+		if err != nil {
+			return reactionResultMsg{err: err}
+		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 			return reactionResultMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
