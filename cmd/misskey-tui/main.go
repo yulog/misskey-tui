@@ -21,8 +21,8 @@ import (
 var (
 	docStyle           = lipgloss.NewStyle().Margin(0, 2)
 	tabStyle           = lipgloss.NewStyle().Padding(0, 1)
-	activeTabStyle     = tabStyle.Copy().Foreground(lipgloss.Color("205")).Bold(true).Underline(true)
-	inactiveTabStyle   = tabStyle.Copy().Foreground(lipgloss.Color("240"))
+	activeTabStyle     = tabStyle.Foreground(lipgloss.Color("205")).Bold(true).Underline(true)
+	inactiveTabStyle   = tabStyle.Foreground(lipgloss.Color("240"))
 	statusMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
 	dialogBoxStyle     = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
