@@ -24,6 +24,10 @@ var (
 	activeTabStyle     = tabStyle.Copy().Foreground(lipgloss.Color("205")).Bold(true).Underline(true)
 	inactiveTabStyle   = tabStyle.Copy().Foreground(lipgloss.Color("240"))
 	statusMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
+	dialogBoxStyle     = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("240")).
+				Padding(1, 0)
 )
 
 // --- Misskey API Structs ---
@@ -64,6 +68,8 @@ type model struct {
 	timeline      string // "home", "local", "social", "global"
 	mode          string // "timeline", "posting"
 	statusMessage string
+	width         int
+	height        int
 	loading       bool
 	err           error
 }
@@ -123,9 +129,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-3) // Adjust for tabs and status
-		m.textarea.SetWidth(msg.Width - h)
+		m.textarea.SetWidth(msg.Width - h - 4)      // Adjust for dialog padding
 		return m, nil
 
 	case tea.KeyMsg:
@@ -229,7 +237,16 @@ func (m model) View() string {
 	}
 
 	if m.mode == "posting" {
-		return fmt.Sprintf("\n%s\n\n%s", m.textarea.View(), "(Ctrl+S to post, Esc to cancel)") + "\n"
+		// Build the dialog content
+		question := "What's on your mind?"
+		help := "(Ctrl+S to post, Esc to cancel)"
+		ui := fmt.Sprintf("%s\n\n%s\n\n%s", question, m.textarea.View(), help)
+
+		// Create the dialog box
+		dialog := dialogBoxStyle.Render(ui)
+
+		// Place the dialog in the center of the screen
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 	}
 
 	// Tabs
