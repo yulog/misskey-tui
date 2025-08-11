@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -51,8 +52,10 @@ type model struct {
 	config   *Config
 	client   *http.Client
 	list     list.Model
+	textarea textarea.Model
 	spinner  spinner.Model
 	timeline string // "home", "local", "social", "global"
+	mode     string // "timeline", "posting"
 	loading  bool
 	err      error
 }
@@ -61,6 +64,10 @@ type model struct {
 
 type timelineLoadedMsg struct {
 	items []list.Item
+}
+
+type notePostedMsg struct {
+	err error
 }
 
 type errorMsg struct {
@@ -78,12 +85,18 @@ func newModel(config *Config) model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	ta := textarea.New()
+	ta.Placeholder = "What's on your mind?"
+	ta.Focus()
+
 	return model{
 		config:   config,
 		client:   &http.Client{Timeout: 10 * time.Second},
 		list:     list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		textarea: ta,
 		spinner:  s,
-		timeline: "home", // Start with home timeline
+		timeline: "home",
+		mode:     "timeline",
 		loading:  true,
 	}
 }
@@ -95,41 +108,49 @@ func (m model) Init() tea.Cmd {
 // --- Update ---
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var listCmd tea.Cmd
-	var spinnerCmd tea.Cmd
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.textarea.SetWidth(msg.Width - h)
 		return m, nil
 
 	case tea.KeyMsg:
-		// Don't do anything if we're loading
-		if m.loading {
-			return m, nil
-		}
-
-		if m.list.FilterState() == list.Filtering {
-			break
-		}
-
-		switch msg.String() {
-		case "ctrl+c", "q":
-			return m, tea.Quit
-
-		case "h", "l", "s", "g":
-			key := msg.String()
-			timelineMap := map[string]string{
-				"h": "home",
-				"l": "local",
-				"s": "social",
-				"g": "global",
+		switch m.mode {
+		case "timeline":
+			if m.loading {
+				return m, nil
 			}
-			if m.timeline != timelineMap[key] {
-				m.timeline = timelineMap[key]
+			if m.list.FilterState() == list.Filtering {
+				break
+			}
+			switch msg.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			case "p":
+				m.mode = "posting"
+				return m, m.textarea.Focus()
+			case "h", "l", "s", "g":
+				key := msg.String()
+				timelineMap := map[string]string{"h": "home", "l": "local", "s": "social", "g": "global"}
+				if m.timeline != timelineMap[key] {
+					m.timeline = timelineMap[key]
+					m.loading = true
+					cmds = append(cmds, m.spinner.Tick, fetchTimeline(m.client, m.config, m.timeline))
+				}
+			}
+		case "posting":
+			switch msg.String() {
+			case "ctrl+s":
 				m.loading = true
-				return m, tea.Batch(m.spinner.Tick, fetchTimeline(m.client, m.config, m.timeline))
+				cmds = append(cmds, m.spinner.Tick, createNote(m.client, m.config, m.textarea.Value()))
+				return m, tea.Batch(cmds...)
+			case "esc":
+				m.mode = "timeline"
+				m.textarea.Reset()
 			}
 		}
 
@@ -137,34 +158,56 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.list.SetItems(msg.items)
 
+	case notePostedMsg:
+		m.loading = false
+		m.mode = "timeline"
+		m.err = msg.err // Use the general error field
+		m.textarea.Reset()
+		if msg.err == nil {
+			m.loading = true
+			cmds = append(cmds, m.spinner.Tick, fetchTimeline(m.client, m.config, m.timeline))
+		}
+
 	case errorMsg:
 		m.loading = false
-		m.err = msg
-		return m, nil
+		m.err = msg.err
 	}
 
 	if m.loading {
-		m.spinner, spinnerCmd = m.spinner.Update(msg)
-	} else {
-		m.list, listCmd = m.list.Update(msg)
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if m.mode == "timeline" {
+		m.list, cmd = m.list.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if m.mode == "posting" {
+		m.textarea, cmd = m.textarea.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
-	return m, tea.Batch(listCmd, spinnerCmd)
+	return m, tea.Batch(cmds...)
 }
 
 // --- View ---
 
 func (m model) View() string {
 	if m.err != nil {
-		return fmt.Sprintf("\nAn error occurred: %s\n\nPress q to quit.", m.err)
+		// Simple error view
+		return fmt.Sprintf("\nAn error occurred: %s\n\nPress any key to return to the timeline.", m.err)
+	}
+
+	if m.mode == "posting" {
+		return fmt.Sprintf(
+			"\n%s\n\n%s",
+			m.textarea.View(),
+			"(Ctrl+S to post, Esc to cancel)",
+		) + "\n"
 	}
 
 	if m.loading {
-		return fmt.Sprintf("\n\n   %s Loading %s timeline...\n\n", m.spinner.View(), m.timeline)
+		return fmt.Sprintf("\n\n   %s Loading...\n\n", m.spinner.View())
 	}
 
-	// Set the title of the list based on the current timeline
-	m.list.Title = strings.ToTitle(m.timeline) + " Timeline (h/l/s/g)"
+	m.list.Title = strings.ToTitle(m.timeline) + " Timeline (p:post, h/l/s/g)"
 	return docStyle.Render(m.list.View())
 }
 
@@ -192,52 +235,36 @@ func loadConfig() (*Config, error) {
 func fetchTimeline(client *http.Client, config *Config, timelineType string) tea.Cmd {
 	return func() tea.Msg {
 		endpointMap := map[string]string{
-			"home":   "/api/notes/timeline",
-			"local":  "/api/notes/local-timeline",
-			"social": "/api/notes/hybrid-timeline",
-			"global": "/api/notes/global-timeline",
+			"home": "/api/notes/timeline", "local": "/api/notes/local-timeline",
+			"social": "/api/notes/hybrid-timeline", "global": "/api/notes/global-timeline",
 		}
-
-		endpoint, err := url.JoinPath(config.InstanceURL, endpointMap[timelineType])
-		if err != nil {
-			return errorMsg{err}
-		}
-
-		reqBody, err := json.Marshal(map[string]interface{}{
-			"i":     config.AccessToken,
-			"limit": 30,
-		})
-		if err != nil {
-			return errorMsg{err}
-		}
-
-		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-		if err != nil {
-			return errorMsg{err}
-		}
+		endpoint, _ := url.JoinPath(config.InstanceURL, endpointMap[timelineType])
+		reqBody, _ := json.Marshal(map[string]interface{}{"i": config.AccessToken, "limit": 30})
+		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
-
 		resp, err := client.Do(req)
-		if err != nil {
-			return errorMsg{err}
-		}
+		if err != nil { return errorMsg{err: err} }
 		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return errorMsg{fmt.Errorf("API request failed with status: %s", resp.Status)}
-		}
-
+		if resp.StatusCode != http.StatusOK { return errorMsg{err: fmt.Errorf("API request failed: %s", resp.Status)} }
 		var notes []Note
-		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
-			return errorMsg{err}
-		}
-
+		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil { return errorMsg{err: err} }
 		items := make([]list.Item, len(notes))
-		for i, note := range notes {
-			items[i] = item{note: note}
-		}
-
+		for i, note := range notes { items[i] = item{note: note} }
 		return timelineLoadedMsg{items: items}
+	}
+}
+
+func createNote(client *http.Client, config *Config, text string) tea.Cmd {
+	return func() tea.Msg {
+		endpoint, _ := url.JoinPath(config.InstanceURL, "/api/notes/create")
+		reqBody, _ := json.Marshal(map[string]interface{}{"i": config.AccessToken, "text": text})
+		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(req)
+		if err != nil { return notePostedMsg{err: err} }
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK { return notePostedMsg{err: fmt.Errorf("API request failed: %s", resp.Status)} }
+		return notePostedMsg{err: nil}
 	}
 }
 
@@ -246,14 +273,11 @@ func fetchTimeline(client *http.Client, config *Config, timelineType string) tea
 func main() {
 	config, err := loadConfig()
 	if err != nil {
-		fmt.Printf("Failed to load config.json: %v\nPlease make sure the file exists and is correct.", err)
+		fmt.Printf("Failed to load config.json: %v", err)
 		os.Exit(1)
 	}
-
 	model := newModel(config)
-
 	p := tea.NewProgram(model, tea.WithAltScreen())
-
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
