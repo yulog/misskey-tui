@@ -149,14 +149,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "posting":
-			switch msg.String() {
-			case "ctrl+s":
+			switch msg.Type {
+			case tea.KeyCtrlS:
 				m.loading = true
 				cmds = append(cmds, m.spinner.Tick, createNote(m.client, m.config, m.textarea.Value()))
 				return m, tea.Batch(cmds...)
-			case "esc":
+			case tea.KeyEsc:
 				m.mode = "timeline"
 				m.textarea.Reset()
+				return m, nil
 			}
 		}
 	case timelineLoadedMsg:
