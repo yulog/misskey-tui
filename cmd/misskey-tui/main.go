@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -18,7 +19,6 @@ import (
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 // --- Misskey API Structs ---
-// We define our own structs to parse the JSON response from the Misskey API.
 
 type Note struct {
 	ID   string `json:"id"`
@@ -48,12 +48,13 @@ func (i item) Description() string { return i.note.Text }
 func (i item) FilterValue() string { return i.note.User.Username }
 
 type model struct {
-	config  *Config
-	client  *http.Client
-	list    list.Model
-	spinner spinner.Model
-	loading bool
-	err     error
+	config   *Config
+	client   *http.Client
+	list     list.Model
+	spinner  spinner.Model
+	timeline string // "home", "local", "social", "global"
+	loading  bool
+	err      error
 }
 
 // --- Messages ---
@@ -78,16 +79,17 @@ func newModel(config *Config) model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
-		config:  config,
-		client:  &http.Client{Timeout: 10 * time.Second},
-		list:    list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
-		spinner: s,
-		loading: true,
+		config:   config,
+		client:   &http.Client{Timeout: 10 * time.Second},
+		list:     list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		spinner:  s,
+		timeline: "home", // Start with home timeline
+		loading:  true,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, fetchTimeline(m.client, m.config))
+	return tea.Batch(m.spinner.Tick, fetchTimeline(m.client, m.config, m.timeline))
 }
 
 // --- Update ---
@@ -103,17 +105,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Don't do anything if we're loading
+		if m.loading {
+			return m, nil
+		}
+
 		if m.list.FilterState() == list.Filtering {
 			break
 		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+
+		case "h", "l", "s", "g":
+			key := msg.String()
+			timelineMap := map[string]string{
+				"h": "home",
+				"l": "local",
+				"s": "social",
+				"g": "global",
+			}
+			if m.timeline != timelineMap[key] {
+				m.timeline = timelineMap[key]
+				m.loading = true
+				return m, tea.Batch(m.spinner.Tick, fetchTimeline(m.client, m.config, m.timeline))
+			}
 		}
 
 	case timelineLoadedMsg:
 		m.loading = false
-		m.list.Title = "Home Timeline"
 		m.list.SetItems(msg.items)
 
 	case errorMsg:
@@ -139,9 +160,11 @@ func (m model) View() string {
 	}
 
 	if m.loading {
-		return fmt.Sprintf("\n\n   %s Loading timeline...\n\n", m.spinner.View())
+		return fmt.Sprintf("\n\n   %s Loading %s timeline...\n\n", m.spinner.View(), m.timeline)
 	}
 
+	// Set the title of the list based on the current timeline
+	m.list.Title = strings.ToTitle(m.timeline) + " Timeline (h/l/s/g)"
 	return docStyle.Render(m.list.View())
 }
 
@@ -166,15 +189,20 @@ func loadConfig() (*Config, error) {
 	return &config, nil
 }
 
-func fetchTimeline(client *http.Client, config *Config) tea.Cmd {
+func fetchTimeline(client *http.Client, config *Config, timelineType string) tea.Cmd {
 	return func() tea.Msg {
-		// 1. Construct the API endpoint URL
-		endpoint, err := url.JoinPath(config.InstanceURL, "/api/notes/timeline")
+		endpointMap := map[string]string{
+			"home":   "/api/notes/timeline",
+			"local":  "/api/notes/local-timeline",
+			"social": "/api/notes/hybrid-timeline",
+			"global": "/api/notes/global-timeline",
+		}
+
+		endpoint, err := url.JoinPath(config.InstanceURL, endpointMap[timelineType])
 		if err != nil {
 			return errorMsg{err}
 		}
 
-		// 2. Create the request body
 		reqBody, err := json.Marshal(map[string]interface{}{
 			"i":     config.AccessToken,
 			"limit": 30,
@@ -183,32 +211,27 @@ func fetchTimeline(client *http.Client, config *Config) tea.Cmd {
 			return errorMsg{err}
 		}
 
-		// 3. Create the HTTP request
 		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		if err != nil {
 			return errorMsg{err}
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		// 4. Send the request
 		resp, err := client.Do(req)
 		if err != nil {
 			return errorMsg{err}
 		}
 		defer resp.Body.Close()
 
-		// 5. Check for non-200 status codes
 		if resp.StatusCode != http.StatusOK {
 			return errorMsg{fmt.Errorf("API request failed with status: %s", resp.Status)}
 		}
 
-		// 6. Parse the JSON response
 		var notes []Note
 		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
 			return errorMsg{err}
 		}
 
-		// 7. Convert to list items for the UI
 		items := make([]list.Item, len(notes))
 		for i, note := range notes {
 			items[i] = item{note: note}
