@@ -18,7 +18,10 @@ import (
 )
 
 var (
-	docStyle           = lipgloss.NewStyle().Margin(1, 2)
+	docStyle           = lipgloss.NewStyle().Margin(0, 2)
+	tabStyle           = lipgloss.NewStyle().Padding(0, 1)
+	activeTabStyle     = tabStyle.Copy().Foreground(lipgloss.Color("205")).Bold(true).Underline(true)
+	inactiveTabStyle   = tabStyle.Copy().Foreground(lipgloss.Color("240"))
 	statusMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
 )
 
@@ -85,10 +88,13 @@ func newModel(config *Config) model {
 	ta.Placeholder = "What's on your mind?"
 	ta.Focus()
 
+	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	l.SetShowTitle(false) // We'll render our own header
+
 	return model{
 		config:   config,
 		client:   &http.Client{Timeout: 10 * time.Second},
-		list:     list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		list:     l,
 		textarea: ta,
 		spinner:  s,
 		timeline: "home",
@@ -110,12 +116,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.list.SetSize(msg.Width-h, msg.Height-v-3) // Adjust for tabs and status
 		m.textarea.SetWidth(msg.Width - h)
 		return m, nil
 
 	case tea.KeyMsg:
-		// Clear main error on any key press
 		if m.err != nil {
 			m.err = nil
 			return m, nil
@@ -149,17 +154,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "posting":
-			switch msg.Type {
-			case tea.KeyCtrlS:
+			switch msg.String() {
+			case "ctrl+s":
 				m.loading = true
 				cmds = append(cmds, m.spinner.Tick, createNote(m.client, m.config, m.textarea.Value()))
 				return m, tea.Batch(cmds...)
-			case tea.KeyEsc:
+			case "esc":
 				m.mode = "timeline"
 				m.textarea.Reset()
-				return m, nil
 			}
 		}
+
 	case timelineLoadedMsg:
 		m.loading = false
 		m.list.SetItems(msg.items)
@@ -218,16 +223,29 @@ func (m model) View() string {
 		return fmt.Sprintf("\n%s\n\n%s", m.textarea.View(), "(Ctrl+S to post, Esc to cancel)") + "\n"
 	}
 
+	// Tabs
+	timelineTabs := []string{"home", "local", "social", "global"}
+	renderedTabs := []string{}
+	for _, t := range timelineTabs {
+		var style lipgloss.Style
+		if t == m.timeline {
+			style = activeTabStyle
+		} else {
+			style = inactiveTabStyle
+		}
+		renderedTabs = append(renderedTabs, style.Render(strings.ToTitle(t)))
+	}
+	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
+
 	var mainContent string
 	if m.loading {
 		mainContent = fmt.Sprintf("\n\n   %s Loading...\n\n", m.spinner.View())
 	} else {
-		m.list.Title = strings.ToTitle(m.timeline) + " Timeline (p:post, r:react, h/l/s/g)"
 		mainContent = docStyle.Render(m.list.View())
 	}
 
 	status := statusMessageStyle.Render(m.statusMessage)
-	return mainContent + "\n" + status
+	return tabHeader + "\n" + mainContent + "\n" + status
 }
 
 // --- I/O ---
@@ -260,21 +278,13 @@ func fetchTimeline(client *http.Client, config *Config, timelineType string) tea
 		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
-		if err != nil {
-			return errorMsg{err: err}
-		}
+		if err != nil { return errorMsg{err: err} }
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return errorMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
-		}
+		if resp.StatusCode != http.StatusOK { return errorMsg{err: fmt.Errorf("API request failed: %s", resp.Status)} }
 		var notes []Note
-		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
-			return errorMsg{err: err}
-		}
+		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil { return errorMsg{err: err} }
 		items := make([]list.Item, len(notes))
-		for i, note := range notes {
-			items[i] = item{note: note}
-		}
+		for i, note := range notes { items[i] = item{note: note} }
 		return timelineLoadedMsg{items: items}
 	}
 }
@@ -286,13 +296,9 @@ func createNote(client *http.Client, config *Config, text string) tea.Cmd {
 		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
-		if err != nil {
-			return notePostedMsg{err: err}
-		}
+		if err != nil { return notePostedMsg{err: err} }
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return notePostedMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
-		}
+		if resp.StatusCode != http.StatusOK { return notePostedMsg{err: fmt.Errorf("API request failed: %s", resp.Status)} }
 		return notePostedMsg{err: nil}
 	}
 }
@@ -304,9 +310,7 @@ func createReaction(client *http.Client, config *Config, noteId string, reaction
 		req, _ := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
-		if err != nil {
-			return reactionResultMsg{err: err}
-		}
+		if err != nil { return reactionResultMsg{err: err} }
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 			return reactionResultMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
