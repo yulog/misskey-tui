@@ -307,7 +307,7 @@ func createReaction(client *http.Client, config *Config, noteId string, reaction
 			return reactionResultMsg{err: err}
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 			return reactionResultMsg{err: fmt.Errorf("API request failed: %s", resp.Status)}
 		}
 		return reactionResultMsg{err: nil}
