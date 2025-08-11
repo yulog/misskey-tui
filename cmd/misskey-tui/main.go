@@ -1,27 +1,41 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sirupsen/logrus"
-	"github.com/yitsushi/go-misskey"
-	"github.com/yitsushi/go-misskey/models"
-	"github.com/yitsushi/go-misskey/services/notes/timeline"
 )
 
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
+// --- Misskey API Structs ---
+// We define our own structs to parse the JSON response from the Misskey API.
+
+type Note struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	User User   `json:"user"`
+}
+
+type User struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+}
+
 // --- Model ---
 
 type item struct {
-	note *models.Note
+	note Note
 }
 
 func (i item) Title() string {
@@ -34,7 +48,8 @@ func (i item) Description() string { return i.note.Text }
 func (i item) FilterValue() string { return i.note.User.Username }
 
 type model struct {
-	client  *misskey.Client
+	config  *Config
+	client  *http.Client
 	list    list.Model
 	spinner spinner.Model
 	loading bool
@@ -57,13 +72,14 @@ func (e errorMsg) Error() string {
 
 // --- Initialization ---
 
-func newModel(client *misskey.Client) model {
+func newModel(config *Config) model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
-		client:  client,
+		config:  config,
+		client:  &http.Client{Timeout: 10 * time.Second},
 		list:    list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
 		spinner: s,
 		loading: true,
@@ -71,7 +87,7 @@ func newModel(client *misskey.Client) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, fetchTimeline(m.client))
+	return tea.Batch(m.spinner.Tick, fetchTimeline(m.client, m.config))
 }
 
 // --- Update ---
@@ -150,18 +166,52 @@ func loadConfig() (*Config, error) {
 	return &config, nil
 }
 
-func fetchTimeline(client *misskey.Client) tea.Cmd {
+func fetchTimeline(client *http.Client, config *Config) tea.Cmd {
 	return func() tea.Msg {
-		notes, err := client.Notes().Timeline().Get(timeline.GetRequest{
-			Limit: 10,
+		// 1. Construct the API endpoint URL
+		endpoint, err := url.JoinPath(config.InstanceURL, "/api/notes/timeline")
+		if err != nil {
+			return errorMsg{err}
+		}
+
+		// 2. Create the request body
+		reqBody, err := json.Marshal(map[string]interface{}{
+			"i":     config.AccessToken,
+			"limit": 30,
 		})
 		if err != nil {
 			return errorMsg{err}
 		}
 
+		// 3. Create the HTTP request
+		req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+		if err != nil {
+			return errorMsg{err}
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		// 4. Send the request
+		resp, err := client.Do(req)
+		if err != nil {
+			return errorMsg{err}
+		}
+		defer resp.Body.Close()
+
+		// 5. Check for non-200 status codes
+		if resp.StatusCode != http.StatusOK {
+			return errorMsg{fmt.Errorf("API request failed with status: %s", resp.Status)}
+		}
+
+		// 6. Parse the JSON response
+		var notes []Note
+		if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
+			return errorMsg{err}
+		}
+
+		// 7. Convert to list items for the UI
 		items := make([]list.Item, len(notes))
 		for i, note := range notes {
-			items[i] = item{note: &note}
+			items[i] = item{note: note}
 		}
 
 		return timelineLoadedMsg{items: items}
@@ -177,23 +227,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	parsedURL, err := url.Parse(config.InstanceURL)
-	if err != nil {
-		fmt.Printf("Failed to parse instance URL: %v", err)
-		os.Exit(1)
-	}
-
-	client, err := misskey.NewClientWithOptions(
-		misskey.WithAPIToken(config.AccessToken),
-		misskey.WithBaseURL(parsedURL.Scheme, parsedURL.Host, parsedURL.Path),
-		misskey.WithLogLevel(logrus.ErrorLevel), // Be less verbose
-	)
-	if err != nil {
-		fmt.Printf("Failed to create Misskey client: %v", err)
-		os.Exit(1)
-	}
-
-	model := newModel(client)
+	model := newModel(config)
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
