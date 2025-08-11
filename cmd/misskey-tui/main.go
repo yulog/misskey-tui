@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -90,6 +91,13 @@ func newModel(config *Config) model {
 
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.SetShowTitle(false) // We'll render our own header
+	l.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "post")),
+			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
+			key.NewBinding(key.WithKeys("h/l/s/g"), key.WithHelp("h/l/s/g", "switch timeline")),
+		}
+	}
 
 	return model{
 		config:   config,
@@ -162,7 +170,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				m.mode = "timeline"
 				m.textarea.Reset()
-				return m, nil
+				return m, nil // Stop the event from propagating.
 			}
 		}
 
