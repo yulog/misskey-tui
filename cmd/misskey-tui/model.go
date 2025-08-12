@@ -67,7 +67,8 @@ type model struct {
 // --- Messages ---
 
 type timelineLoadedMsg struct{ items []list.Item }
-type noteDetailLoadedMsg struct{ notes []Note }
+type parentNoteLoadedMsg struct{ note *Note }
+type childrenNotesLoadedMsg struct{ notes []Note }
 type notePostedMsg struct{ err error }
 type reactionResultMsg struct{ err error }
 type clearStatusMsg struct{}
@@ -172,7 +173,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.loading = true
 					m.selectedNote = &selectedItem.note
-					cmds = append(cmds, m.spinner.Tick, m.fetchNoteConversationCmd(selectedItem.note.ID))
+					var batchCmds []tea.Cmd
+					batchCmds = append(batchCmds, m.spinner.Tick, m.fetchNoteChildrenCmd(m.selectedNote.ID))
+					if m.selectedNote.ReplyId != "" {
+						batchCmds = append(batchCmds, m.fetchParentNoteCmd(m.selectedNote.ReplyId))
+					}
+					cmds = append(cmds, tea.Batch(batchCmds...))
 				}
 			case "h", "l", "s", "g":
 				key := msg.String()
@@ -210,20 +216,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.list.SetItems(msg.items)
 
-	case noteDetailLoadedMsg:
+	case parentNoteLoadedMsg:
+		m.parentNote = msg.note
+		return m, nil
+
+	case childrenNotesLoadedMsg:
 		m.loading = false
-		replies := []list.Item{}
+		var items []list.Item
 		for _, note := range msg.notes {
-			if note.ID == m.selectedNote.ReplyId {
-				// This is a temporary copy for the pointer.
-				parent := note
-				m.parentNote = &parent
-			}
-			if note.ReplyId == m.selectedNote.ID {
-				replies = append(replies, item{note: note})
-			}
+			items = append(items, item{note: note})
 		}
-		m.detailList.SetItems(replies)
+		m.detailList.SetItems(items)
 		m.mode = "detail"
 
 	case notePostedMsg:
@@ -381,13 +384,23 @@ func (m model) fetchTimelineCmd() tea.Cmd {
 	}
 }
 
-func (m model) fetchNoteConversationCmd(noteId string) tea.Cmd {
+func (m model) fetchParentNoteCmd(noteId string) tea.Cmd {
 	return func() tea.Msg {
-		notes, err := fetchNoteConversation(m.client, m.config, noteId)
+		note, err := fetchSingleNote(m.client, m.config, noteId)
 		if err != nil {
 			return errorMsg{err: err}
 		}
-		return noteDetailLoadedMsg{notes: notes}
+		return parentNoteLoadedMsg{note: note}
+	}
+}
+
+func (m model) fetchNoteChildrenCmd(noteId string) tea.Cmd {
+	return func() tea.Msg {
+		notes, err := fetchNoteChildren(m.client, m.config, noteId)
+		if err != nil {
+			return errorMsg{err: err}
+		}
+		return childrenNotesLoadedMsg{notes: notes}
 	}
 }
 
