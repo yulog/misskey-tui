@@ -32,7 +32,8 @@ var (
 
 	detailContainerStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("205"))
+				BorderForeground(lipgloss.Color("205")).
+				Padding(1, 1)
 
 	metadataStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
