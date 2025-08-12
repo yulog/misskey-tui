@@ -238,21 +238,28 @@ func (m model) View() string {
 	}
 
 	if m.mode == "posting" {
-		var final strings.Builder
+		var viewContent strings.Builder
 
+		// If it's a reply, render the quote first.
 		if m.replyToNote != nil {
 			quoteAuthor := fmt.Sprintf("@%s", m.replyToNote.User.Username)
 			quoteText := m.replyToNote.Text
 			quote := fmt.Sprintf("%s\n%s", quoteAuthor, quoteText)
-			final.WriteString(quoteBoxStyle.Render(quote))
+			// Render the quote and add a newline after it.
+			viewContent.WriteString(quoteBoxStyle.Render(quote))
+			viewContent.WriteString("\n")
 		}
 
+		// Add the textarea component. It will manage its own placeholder.
+		viewContent.WriteString(m.textarea.View())
+		viewContent.WriteString("\n\n")
+
+		// Add the help text.
 		help := "(Ctrl+S to post, Esc to cancel)"
-		ui := fmt.Sprintf("%s\n\n%s\n\n%s", m.textarea.Placeholder, m.textarea.View(), help)
+		viewContent.WriteString(help)
 
-		final.WriteString(ui)
-
-		dialog := dialogBoxStyle.Render(final.String())
+		// Render the whole thing in a dialog box.
+		dialog := dialogBoxStyle.Render(viewContent.String())
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 	}
 
