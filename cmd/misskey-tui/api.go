@@ -154,3 +154,38 @@ func createReaction(client *http.Client, config *Config, noteId string, reaction
 
 	return nil
 }
+
+func fetchNoteConversation(client *http.Client, config *Config, noteId string) ([]Note, error) {
+	endpoint, err := url.JoinPath(config.InstanceURL, "/api/notes/conversation")
+	if err != nil {
+		return nil, err
+	}
+
+	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken, "noteId": noteId})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed: %s", resp.Status)
+	}
+
+	var notes []Note
+	if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
+		return nil, err
+	}
+
+	return notes, nil
+}

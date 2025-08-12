@@ -48,12 +48,14 @@ type model struct {
 	config        *Config
 	client        *http.Client
 	list          list.Model
+	detailList    list.Model
 	textarea      textarea.Model
 	spinner       spinner.Model
 	timeline      string // "home", "local", "social", "global"
-	mode          string // "timeline", "posting"
+	mode          string // "timeline", "posting", "detail"
 	replyToId     string // ID of the note being replied to
 	replyToNote   *Note  // The note being replied to
+	selectedNote  *Note
 	statusMessage string
 	width         int
 	height        int
@@ -64,6 +66,7 @@ type model struct {
 // --- Messages ---
 
 type timelineLoadedMsg struct{ items []list.Item }
+type noteDetailLoadedMsg struct{ notes []Note }
 type notePostedMsg struct{ err error }
 type reactionResultMsg struct{ err error }
 type clearStatusMsg struct{}
@@ -82,26 +85,32 @@ func newModel(config *Config) model {
 	ta.Placeholder = "What's on your mind?"
 	ta.Focus()
 
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-	l.SetShowTitle(false) // We'll render our own header
-	l.AdditionalShortHelpKeys = func() []key.Binding {
+	mainList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	mainList.SetShowTitle(false)
+	mainList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "post")),
 			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reply")),
 			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "detail")),
 			key.NewBinding(key.WithKeys("h/l/s/g"), key.WithHelp("h/l/s/g", "switch")),
 		}
 	}
 
+	detailList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	detailList.SetShowTitle(false)
+	detailList.SetShowHelp(false)
+
 	return model{
-		config:   config,
-		client:   &http.Client{Timeout: 10 * time.Second},
-		list:     l,
-		textarea: ta,
-		spinner:  s,
-		timeline: "home",
-		mode:     "timeline",
-		loading:  true,
+		config:     config,
+		client:     &http.Client{Timeout: 10 * time.Second},
+		list:       mainList,
+		detailList: detailList,
+		textarea:   ta,
+		spinner:    s,
+		timeline:   "home",
+		mode:       "timeline",
+		loading:    true,
 	}
 }
 
@@ -120,8 +129,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-3) // Adjust for tabs and status
-		m.textarea.SetWidth(msg.Width - h - 4)      // Adjust for dialog padding
+		m.list.SetSize(msg.Width-h, msg.Height-v-3)
+		m.textarea.SetWidth(msg.Width - h - 4)
+		m.detailList.SetSize(msg.Width-h, msg.Height-v-10) // Adjust for detail view
 		return m, nil
 
 	case tea.KeyMsg:
@@ -157,6 +167,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					cmds = append(cmds, m.createReactionCmd(selectedItem.note.ID, "❤️"))
 				}
+			case "enter":
+				if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					m.loading = true
+					m.selectedNote = &selectedItem.note
+					cmds = append(cmds, m.spinner.Tick, m.fetchNoteConversationCmd(selectedItem.note.ID))
+				}
 			case "h", "l", "s", "g":
 				key := msg.String()
 				timelineMap := map[string]string{"h": "home", "l": "local", "s": "social", "g": "global"}
@@ -177,13 +193,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textarea.Reset()
 				m.replyToId = ""
 				m.replyToNote = nil
-				return m, nil // Stop the event from propagating.
+				return m, nil
+			}
+		case "detail":
+			switch msg.String() {
+			case "ctrl+c", "q", "esc":
+				m.mode = "timeline"
+				m.selectedNote = nil
+				return m, nil
 			}
 		}
 
 	case timelineLoadedMsg:
 		m.loading = false
 		m.list.SetItems(msg.items)
+
+	case noteDetailLoadedMsg:
+		m.loading = false
+		// API returns the conversation, find the replies (descendants)
+		replies := []list.Item{}
+		for _, note := range msg.notes {
+			if note.ID != m.selectedNote.ID { // Exclude the main note itself
+				replies = append(replies, item{note: note})
+			}
+		}
+		m.detailList.SetItems(replies)
+		m.mode = "detail"
 
 	case notePostedMsg:
 		m.loading = false
@@ -219,12 +254,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.loading {
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
-	} else if m.mode == "timeline" {
-		m.list, cmd = m.list.Update(msg)
-		cmds = append(cmds, cmd)
-	} else if m.mode == "posting" {
-		m.textarea, cmd = m.textarea.Update(msg)
-		cmds = append(cmds, cmd)
+	} else {
+		switch m.mode {
+		case "timeline":
+			m.list, cmd = m.list.Update(msg)
+			cmds = append(cmds, cmd)
+		case "posting":
+			m.textarea, cmd = m.textarea.Update(msg)
+			cmds = append(cmds, cmd)
+		case "detail":
+			m.detailList, cmd = m.detailList.Update(msg)
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -237,30 +278,34 @@ func (m model) View() string {
 		return fmt.Sprintf("\nAn error occurred: %s\n\nPress any key to return.", m.err)
 	}
 
+	if m.loading {
+		return fmt.Sprintf("\n\n   %s Loading...\n\n", m.spinner.View())
+	}
+
 	if m.mode == "posting" {
 		var viewContent strings.Builder
-
-		// If it's a reply, render the quote first.
 		if m.replyToNote != nil {
 			quoteAuthor := fmt.Sprintf("@%s", m.replyToNote.User.Username)
 			quoteText := m.replyToNote.Text
 			quote := fmt.Sprintf("%s\n%s", quoteAuthor, quoteText)
-			// Render the quote and add a newline after it.
 			viewContent.WriteString(quoteBoxStyle.Render(quote))
 			viewContent.WriteString("\n")
 		}
-
-		// Add the textarea component. It will manage its own placeholder.
 		viewContent.WriteString(m.textarea.View())
 		viewContent.WriteString("\n\n")
-
-		// Add the help text.
 		help := "(Ctrl+S to post, Esc to cancel)"
 		viewContent.WriteString(help)
-
-		// Render the whole thing in a dialog box.
 		dialog := dialogBoxStyle.Render(viewContent.String())
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
+	}
+
+	if m.mode == "detail" {
+		var s strings.Builder
+		s.WriteString(item{note: *m.selectedNote}.Title())
+		s.WriteString("\n")
+		s.WriteString(m.selectedNote.Text)
+		s.WriteString("\n\n-- Replies --\n")
+		return docStyle.Render(s.String() + m.detailList.View())
 	}
 
 	// Tabs
@@ -277,12 +322,7 @@ func (m model) View() string {
 	}
 	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
 
-	var mainContent string
-	if m.loading {
-		mainContent = fmt.Sprintf("\n\n   %s Loading...\n\n", m.spinner.View())
-	} else {
-		mainContent = docStyle.Render(m.list.View())
-	}
+	mainContent := docStyle.Render(m.list.View())
 
 	status := statusMessageStyle.Render(m.statusMessage)
 	return tabHeader + "\n" + mainContent + "\n" + status
@@ -301,6 +341,16 @@ func (m model) fetchTimelineCmd() tea.Cmd {
 			items[i] = item{note: note}
 		}
 		return timelineLoadedMsg{items: items}
+	}
+}
+
+func (m model) fetchNoteConversationCmd(noteId string) tea.Cmd {
+	return func() tea.Msg {
+		notes, err := fetchNoteConversation(m.client, m.config, noteId)
+		if err != nil {
+			return errorMsg{err: err}
+		}
+		return noteDetailLoadedMsg{notes: notes}
 	}
 }
 
