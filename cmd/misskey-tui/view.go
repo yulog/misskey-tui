@@ -38,7 +38,7 @@ var (
 				BorderBottom(true)
 )
 
-func (m model) View() string {
+func (m *model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("\nAn error occurred: %s\n\nPress any key to return.", m.err)
 	}

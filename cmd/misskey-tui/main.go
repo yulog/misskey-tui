@@ -16,7 +16,7 @@ func main() {
 
 	model := newModel(config)
 
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(&model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)

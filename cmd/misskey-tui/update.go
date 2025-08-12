@@ -23,18 +23,13 @@ func (e errorMsg) Error() string { return e.err.Error() }
 
 // --- Update ---
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v-3)
-		m.textarea.SetWidth(msg.Width - h - 4)
-		m.detailList.SetSize(msg.Width-h, msg.Height-v-15) // Adjust for detail view
+		m.onWindowSizeChanged(msg)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -201,4 +196,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
+	m.width = msg.Width
+	m.height = msg.Height
+	h, v := docStyle.GetFrameSize()
+	m.list.SetSize(msg.Width-h, msg.Height-v-3)
+	m.textarea.SetWidth(msg.Width - h - 4)
+	m.detailList.SetSize(msg.Width-h, msg.Height-v-15) // Adjust for detail view
 }
