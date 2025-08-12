@@ -24,6 +24,9 @@ var (
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("240")).
 				Padding(1, 0)
+	quoteBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			BorderForeground(lipgloss.Color("240"))
 )
 
 // --- Model ---
@@ -50,6 +53,7 @@ type model struct {
 	timeline      string // "home", "local", "social", "global"
 	mode          string // "timeline", "posting"
 	replyToId     string // ID of the note being replied to
+	replyToNote   *Note  // The note being replied to
 	statusMessage string
 	width         int
 	height        int
@@ -145,6 +149,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.mode = "posting"
 					m.replyToId = selectedItem.note.ID
+					m.replyToNote = &selectedItem.note
 					m.textarea.Placeholder = fmt.Sprintf("Replying to @%s...", selectedItem.note.User.Username)
 					return m, m.textarea.Focus()
 				}
@@ -171,6 +176,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = "timeline"
 				m.textarea.Reset()
 				m.replyToId = ""
+				m.replyToNote = nil
 				return m, nil // Stop the event from propagating.
 			}
 		}
@@ -184,6 +190,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mode = "timeline"
 		m.textarea.Reset()
 		m.replyToId = ""
+		m.replyToNote = nil
 		if msg.err != nil {
 			m.statusMessage = fmt.Sprintf("Failed to post note: %v", msg.err)
 		} else {
@@ -231,10 +238,21 @@ func (m model) View() string {
 	}
 
 	if m.mode == "posting" {
-		// Use the placeholder for the question/prompt
-	help := "(Ctrl+S to post, Esc to cancel)"
+		var final strings.Builder
+
+		if m.replyToNote != nil {
+			quoteAuthor := fmt.Sprintf("@%s", m.replyToNote.User.Username)
+			quoteText := m.replyToNote.Text
+			quote := fmt.Sprintf("%s\n%s", quoteAuthor, quoteText)
+			final.WriteString(quoteBoxStyle.Render(quote))
+		}
+
+		help := "(Ctrl+S to post, Esc to cancel)"
 		ui := fmt.Sprintf("%s\n\n%s\n\n%s", m.textarea.Placeholder, m.textarea.View(), help)
-		dialog := dialogBoxStyle.Render(ui)
+
+		final.WriteString(ui)
+
+		dialog := dialogBoxStyle.Render(final.String())
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 	}
 
