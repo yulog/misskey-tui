@@ -229,3 +229,38 @@ func fetchSingleNote(client *http.Client, config *Config, noteId string) (*Note,
 
 	return &note, nil
 }
+
+func createRenote(client *http.Client, config *Config, noteId string) error {
+	endpoint, err := url.JoinPath(config.InstanceURL, "/api/notes/create")
+	if err != nil {
+		return err
+	}
+
+	payload := map[string]any{
+		"i":        config.AccessToken,
+		"renoteId": noteId,
+	}
+
+	reqBody, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed: %s", resp.Status)
+	}
+
+	return nil
+}

@@ -70,6 +70,7 @@ type timelineLoadedMsg struct{ items []list.Item }
 type parentNoteLoadedMsg struct{ note *Note }
 type childrenNotesLoadedMsg struct{ notes []Note }
 type notePostedMsg struct{ err error }
+type noteRenotedMsg struct{ err error }
 type reactionResultMsg struct{ err error }
 type clearStatusMsg struct{}
 type errorMsg struct{ err error }
@@ -94,6 +95,7 @@ func newModel(config *Config) model {
 			key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "post")),
 			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reply")),
 			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
+			key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "renote")),
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "detail")),
 			key.NewBinding(key.WithKeys("h/l/s/g"), key.WithHelp("h/l/s/g", "switch")),
 		}
@@ -101,7 +103,13 @@ func newModel(config *Config) model {
 
 	detailList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	detailList.SetShowTitle(false)
-	detailList.SetShowHelp(false)
+	detailList.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reply")),
+			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
+			key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "renote")),
+		}
+	}
 
 	return model{
 		config:     config,
@@ -169,6 +177,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					cmds = append(cmds, m.createReactionCmd(selectedItem.note.ID, "❤️"))
 				}
+			case "t":
+				if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					cmds = append(cmds, m.createRenoteCmd(selectedItem.note.ID))
+				}
 			case "enter":
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.loading = true
@@ -209,6 +221,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedNote = nil
 				m.parentNote = nil
 				return m, nil
+			case "R":
+				m.mode = "posting"
+				m.replyToId = m.selectedNote.ID
+				m.replyToNote = m.selectedNote
+				m.textarea.Placeholder = fmt.Sprintf("Replying to @%s...", m.selectedNote.User.Username)
+				return m, m.textarea.Focus()
+			case "r":
+				cmds = append(cmds, m.createReactionCmd(m.selectedNote.ID, "❤️"))
+			case "t":
+				cmds = append(cmds, m.createRenoteCmd(m.selectedNote.ID))
 			}
 		}
 
@@ -241,6 +263,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMessage = "Note posted successfully!"
 			m.loading = true
 			cmds = append(cmds, m.spinner.Tick, m.fetchTimelineCmd())
+		}
+		cmds = append(cmds, tea.Tick(3*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} }))
+
+	case noteRenotedMsg:
+		if msg.err != nil {
+			m.statusMessage = fmt.Sprintf("Failed to renote: %v", msg.err)
+		} else {
+			m.statusMessage = "Renoted successfully!"
 		}
 		cmds = append(cmds, tea.Tick(3*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} }))
 
@@ -408,6 +438,13 @@ func (m model) createNoteCmd(text string, replyId string) tea.Cmd {
 	return func() tea.Msg {
 		err := createNote(m.client, m.config, text, replyId)
 		return notePostedMsg{err: err}
+	}
+}
+
+func (m model) createRenoteCmd(noteId string) tea.Cmd {
+	return func() tea.Msg {
+		err := createRenote(m.client, m.config, noteId)
+		return noteRenotedMsg{err: err}
 	}
 }
 
