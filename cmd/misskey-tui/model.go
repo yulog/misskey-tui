@@ -301,9 +301,31 @@ func (m model) View() string {
 
 	if m.mode == "detail" {
 		var s strings.Builder
+		// Author
 		s.WriteString(item{note: *m.selectedNote}.Title())
 		s.WriteString("\n")
+
+		// Text
 		s.WriteString(m.selectedNote.Text)
+		s.WriteString("\n\n")
+
+		// Metadata
+		t, err := time.Parse(time.RFC3339, m.selectedNote.CreatedAt)
+		if err == nil {
+			s.WriteString(t.Local().Format("2006-01-02 15:04:05"))
+			s.WriteString("\n")
+		}
+		counts := fmt.Sprintf("Replies: %d, Renotes: %d", m.selectedNote.RepliesCount, m.selectedNote.RenoteCount)
+		s.WriteString(counts)
+		s.WriteString("\n")
+
+		// Reactions
+		var reactions []string
+		for r, c := range m.selectedNote.Reactions {
+			reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
+		}
+		s.WriteString(strings.Join(reactions, " | "))
+
 		s.WriteString("\n\n-- Replies --\n")
 		return docStyle.Render(s.String() + m.detailList.View())
 	}
