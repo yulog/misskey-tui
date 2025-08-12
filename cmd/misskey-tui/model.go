@@ -27,6 +27,15 @@ var (
 	quoteBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
 			BorderForeground(lipgloss.Color("240"))
+	detailContainerStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("205"))
+	metadataStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	repliesHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Padding(0, 1).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderBottom(true)
 )
 
 // --- Model ---
@@ -342,55 +351,61 @@ func (m model) View() string {
 		var s strings.Builder
 
 		if m.parentNote != nil {
-			quoteAuthor := fmt.Sprintf("@%s", m.parentNote.User.Username)
-			quoteText := m.parentNote.Text
-			quote := fmt.Sprintf("%s\n%s", quoteAuthor, quoteText)
+			parentAuthor := fmt.Sprintf("Replying to @%s", m.parentNote.User.Username)
+			parentInfo := metadataStyle.Render(parentAuthor)
+			parentText := m.parentNote.Text
+			quote := fmt.Sprintf("%s\n%s", parentInfo, parentText)
 			s.WriteString(quoteBoxStyle.Render(quote))
 			s.WriteString("\n")
 		}
 
-		// Author
-		s.WriteString(item{note: *m.selectedNote}.Title())
-		s.WriteString("\n")
+		// Main note container
+		var noteContent strings.Builder
+		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *m.selectedNote}.Title()))
+		noteContent.WriteString("\n")
+		noteContent.WriteString(m.selectedNote.Text)
+		noteContent.WriteString("\n\n")
 
-		// Text
-		s.WriteString(m.selectedNote.Text)
-		s.WriteString("\n\n")
-
-		// Metadata
-		t, err := time.Parse(time.RFC3339, m.selectedNote.CreatedAt)
-		if err == nil {
-			s.WriteString(t.Local().Format("2006-01-02 15:04:05"))
-			s.WriteString("\n")
-		}
-		counts := fmt.Sprintf("Replies: %d, Renotes: %d", m.selectedNote.RepliesCount, m.selectedNote.RenoteCount)
-		s.WriteString(counts)
-		s.WriteString("\n")
-
-		// Reactions
+		// Metadata section
 		var reactions []string
 		for r, c := range m.selectedNote.Reactions {
 			reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
 		}
-		s.WriteString(strings.Join(reactions, " | "))
+		reactionsStr := strings.Join(reactions, " | ")
 
-		s.WriteString("\n\n-- Replies --\n")
-		return docStyle.Render(s.String() + m.detailList.View())
-	}
-
-	// Tabs
-	timelineTabs := []string{"home", "local", "social", "global"}
-	renderedTabs := []string{}
-	for _, t := range timelineTabs {
-		var style lipgloss.Style
-		if t == m.timeline {
-			style = activeTabStyle
-		} else {
-			style = inactiveTabStyle
+		t, err := time.Parse(time.RFC3339, m.selectedNote.CreatedAt)
+		var timeStr string
+		if err == nil {
+			timeStr = t.Local().Format("2006-01-02 15:04:05")
 		}
-		renderedTabs = append(renderedTabs, style.Render(strings.ToTitle(t)))
+
+		countsStr := fmt.Sprintf("Replies: %d, Renotes: %d", m.selectedNote.RepliesCount, m.selectedNote.RenoteCount)
+
+		metaData := lipgloss.JoinVertical(lipgloss.Left,
+			reactionsStr,
+			metadataStyle.Render(countsStr),
+			metadataStyle.Render(timeStr),
+		)
+		noteContent.WriteString(metaData)
+
+		s.WriteString(detailContainerStyle.Render(noteContent.String()))
+		s.WriteString("\n")
+
+		// Replies
+		s.WriteString(repliesHeaderStyle.Render("Replies"))
+		s.WriteString("\n")
+		s.WriteString(m.detailList.View())
+
+		return docStyle.Render(s.String())
 	}
-	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
+
+	// Timeline view
+	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top,
+		activeTabStyle.Render("Home"),
+		inactiveTabStyle.Render("Local"),
+		inactiveTabStyle.Render("Social"),
+		inactiveTabStyle.Render("Global"),
+	)
 
 	mainContent := docStyle.Render(m.list.View())
 
