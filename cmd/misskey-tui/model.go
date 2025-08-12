@@ -49,6 +49,7 @@ type model struct {
 	spinner       spinner.Model
 	timeline      string // "home", "local", "social", "global"
 	mode          string // "timeline", "posting"
+	replyToId     string // ID of the note being replied to
 	statusMessage string
 	width         int
 	height        int
@@ -82,6 +83,7 @@ func newModel(config *Config) model {
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "post")),
+			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reply")),
 			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
 			key.NewBinding(key.WithKeys("h/l/s/g"), key.WithHelp("h/l/s/g", "switch")),
 		}
@@ -137,7 +139,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "p":
 				m.mode = "posting"
+				m.textarea.Placeholder = "What's on your mind?"
 				return m, m.textarea.Focus()
+			case "R":
+				if selectedItem, ok := m.list.SelectedItem().(item); ok {
+					m.mode = "posting"
+					m.replyToId = selectedItem.note.ID
+					m.textarea.Placeholder = fmt.Sprintf("Replying to @%s...", selectedItem.note.User.Username)
+					return m, m.textarea.Focus()
+				}
 			case "r":
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					cmds = append(cmds, m.createReactionCmd(selectedItem.note.ID, "❤️"))
@@ -155,11 +165,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "ctrl+s":
 				m.loading = true
-				cmds = append(cmds, m.spinner.Tick, m.createNoteCmd(m.textarea.Value()))
+				cmds = append(cmds, m.spinner.Tick, m.createNoteCmd(m.textarea.Value(), m.replyToId))
 				return m, tea.Batch(cmds...)
 			case "esc":
 				m.mode = "timeline"
 				m.textarea.Reset()
+				m.replyToId = ""
 				return m, nil // Stop the event from propagating.
 			}
 		}
@@ -172,6 +183,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.mode = "timeline"
 		m.textarea.Reset()
+		m.replyToId = ""
 		if msg.err != nil {
 			m.statusMessage = fmt.Sprintf("Failed to post note: %v", msg.err)
 		} else {
@@ -219,9 +231,9 @@ func (m model) View() string {
 	}
 
 	if m.mode == "posting" {
-		question := "What's on your mind?"
-		help := "(Ctrl+S to post, Esc to cancel)"
-		ui := fmt.Sprintf("%s\n\n%s\n\n%s", question, m.textarea.View(), help)
+		// Use the placeholder for the question/prompt
+	help := "(Ctrl+S to post, Esc to cancel)"
+		ui := fmt.Sprintf("%s\n\n%s\n\n%s", m.textarea.Placeholder, m.textarea.View(), help)
 		dialog := dialogBoxStyle.Render(ui)
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 	}
@@ -267,9 +279,9 @@ func (m model) fetchTimelineCmd() tea.Cmd {
 	}
 }
 
-func (m model) createNoteCmd(text string) tea.Cmd {
+func (m model) createNoteCmd(text string, replyId string) tea.Cmd {
 	return func() tea.Msg {
-		err := createNote(m.client, m.config, text)
+		err := createNote(m.client, m.config, text, replyId)
 		return notePostedMsg{err: err}
 	}
 }

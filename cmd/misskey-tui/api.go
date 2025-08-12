@@ -87,13 +87,21 @@ func fetchTimeline(client *http.Client, config *Config, timelineType string) ([]
 	return notes, nil
 }
 
-func createNote(client *http.Client, config *Config, text string) error {
+func createNote(client *http.Client, config *Config, text string, replyId string) error {
 	endpoint, err := url.JoinPath(config.InstanceURL, "/api/notes/create")
 	if err != nil {
 		return err
 	}
 
-	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken, "text": text})
+	payload := map[string]any{
+		"i":    config.AccessToken,
+		"text": text,
+	}
+	if replyId != "" {
+		payload["replyId"] = replyId
+	}
+
+	reqBody, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
