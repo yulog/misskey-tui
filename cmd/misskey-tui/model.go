@@ -418,7 +418,7 @@ func (m model) View() string {
 		} else {
 			style = inactiveTabStyle
 		}
-		renderedTabs = append(renderedTabs, style.Render(strings.ToTitle(t[0:1])))
+		renderedTabs = append(renderedTabs, style.Render(strings.ToTitle(t)))
 	}
 	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
 
