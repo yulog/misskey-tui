@@ -19,6 +19,7 @@ type Note struct {
 	RepliesCount int               `json:"repliesCount"`
 	RenoteCount  int               `json:"renoteCount"`
 	Reactions    map[string]int    `json:"reactions"`
+	ReplyId      string            `json:"replyId,omitempty"`
 }
 
 type User struct {

@@ -56,6 +56,7 @@ type model struct {
 	replyToId     string // ID of the note being replied to
 	replyToNote   *Note  // The note being replied to
 	selectedNote  *Note
+	parentNote    *Note // The parent of the selected note
 	statusMessage string
 	width         int
 	height        int
@@ -200,6 +201,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c", "q", "esc":
 				m.mode = "timeline"
 				m.selectedNote = nil
+				m.parentNote = nil
 				return m, nil
 			}
 		}
@@ -210,10 +212,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case noteDetailLoadedMsg:
 		m.loading = false
-		// API returns the conversation, find the replies (descendants)
 		replies := []list.Item{}
 		for _, note := range msg.notes {
-			if note.ID != m.selectedNote.ID { // Exclude the main note itself
+			if note.ID == m.selectedNote.ReplyId {
+				// This is a temporary copy for the pointer.
+				parent := note
+				m.parentNote = &parent
+			}
+			if note.ReplyId == m.selectedNote.ID {
 				replies = append(replies, item{note: note})
 			}
 		}
@@ -301,6 +307,15 @@ func (m model) View() string {
 
 	if m.mode == "detail" {
 		var s strings.Builder
+
+		if m.parentNote != nil {
+			quoteAuthor := fmt.Sprintf("@%s", m.parentNote.User.Username)
+			quoteText := m.parentNote.Text
+			quote := fmt.Sprintf("%s\n%s", quoteAuthor, quoteText)
+			s.WriteString(quoteBoxStyle.Render(quote))
+			s.WriteString("\n")
+		}
+
 		// Author
 		s.WriteString(item{note: *m.selectedNote}.Title())
 		s.WriteString("\n")
