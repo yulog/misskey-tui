@@ -26,11 +26,16 @@ var (
 				Padding(1, 0)
 	quoteBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(lipgloss.Color("240"))
+			BorderForeground(lipgloss.Color("240")).
+			PaddingLeft(1).
+			MarginLeft(1)
+
 	detailContainerStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("205"))
-	metadataStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	metadataStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
 	repliesHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Padding(0, 1).
@@ -150,7 +155,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v-3)
 		m.textarea.SetWidth(msg.Width - h - 4)
-		m.detailList.SetSize(msg.Width-h, msg.Height-v-10) // Adjust for detail view
+		m.detailList.SetSize(msg.Width-h, msg.Height-v-15) // Adjust for detail view
 		return m, nil
 
 	case tea.KeyMsg:
@@ -348,25 +353,23 @@ func (m model) View() string {
 	}
 
 	if m.mode == "detail" {
-		var s strings.Builder
-
+		// 1. Parent Note (if it exists)
+		var parentView string
 		if m.parentNote != nil {
 			parentAuthor := fmt.Sprintf("Replying to @%s", m.parentNote.User.Username)
 			parentInfo := metadataStyle.Render(parentAuthor)
 			parentText := m.parentNote.Text
 			quote := fmt.Sprintf("%s\n%s", parentInfo, parentText)
-			s.WriteString(quoteBoxStyle.Render(quote))
-			s.WriteString("\n")
+			parentView = quoteBoxStyle.Render(quote)
 		}
 
-		// Main note container
+		// 2. Main Note
 		var noteContent strings.Builder
 		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *m.selectedNote}.Title()))
 		noteContent.WriteString("\n")
 		noteContent.WriteString(m.selectedNote.Text)
 		noteContent.WriteString("\n\n")
 
-		// Metadata section
 		var reactions []string
 		for r, c := range m.selectedNote.Reactions {
 			reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
@@ -387,25 +390,37 @@ func (m model) View() string {
 			metadataStyle.Render(timeStr),
 		)
 		noteContent.WriteString(metaData)
+		mainNoteView := detailContainerStyle.Render(noteContent.String())
 
-		s.WriteString(detailContainerStyle.Render(noteContent.String()))
-		s.WriteString("\n")
+		// 3. Replies
+		repliesView := lipgloss.JoinVertical(lipgloss.Left,
+			repliesHeaderStyle.Render("Replies"),
+			m.detailList.View(),
+		)
 
-		// Replies
-		s.WriteString(repliesHeaderStyle.Render("Replies"))
-		s.WriteString("\n")
-		s.WriteString(m.detailList.View())
+		// 4. Join them all together
+		finalView := lipgloss.JoinVertical(lipgloss.Left,
+			parentView,
+			mainNoteView,
+			repliesView,
+		)
 
-		return docStyle.Render(s.String())
+		return docStyle.Render(finalView)
 	}
 
 	// Timeline view
-	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top,
-		activeTabStyle.Render("Home"),
-		inactiveTabStyle.Render("Local"),
-		inactiveTabStyle.Render("Social"),
-		inactiveTabStyle.Render("Global"),
-	)
+	timelineTabs := []string{"home", "local", "social", "global"}
+	var renderedTabs []string
+	for _, t := range timelineTabs {
+		var style lipgloss.Style
+		if t == m.timeline {
+			style = activeTabStyle
+		} else {
+			style = inactiveTabStyle
+		}
+		renderedTabs = append(renderedTabs, style.Render(strings.ToTitle(t[0:1])))
+	}
+	tabHeader := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
 
 	mainContent := docStyle.Render(m.list.View())
 
