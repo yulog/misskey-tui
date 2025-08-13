@@ -63,6 +63,7 @@ func (m *model) View() string {
 				break
 			}
 			emojiName := strings.Trim(r, ":")
+			emojiName = strings.TrimSuffix(emojiName, "@.")
 			if sixel, ok := m.emojiCache[emojiName]; ok {
 				reactions = append(reactions, fmt.Sprintf("%s %d", string(sixel), c))
 			} else {

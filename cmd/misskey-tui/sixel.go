@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
-	_ "golang.org/x/image/webp"
+	_ "github.com/gen2brain/webp"
 
 	"github.com/mattn/go-sixel"
 	"golang.org/x/image/draw"
