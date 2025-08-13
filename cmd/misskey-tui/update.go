@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -46,14 +47,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.list.FilterState() == list.Filtering {
 				break
 			}
-			switch msg.String() {
-			case "ctrl+c", "q":
+			switch {
+			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
-			case "p":
+			case key.Matches(msg, m.keys.Post):
 				m.mode = "posting"
 				m.textarea.Placeholder = "What's on your mind?"
 				return m, m.textarea.Focus()
-			case "R":
+			case key.Matches(msg, m.keys.Reply):
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.mode = "posting"
 					m.replyToId = selectedItem.note.ID
@@ -61,15 +62,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.textarea.Placeholder = fmt.Sprintf("Replying to @%s...", selectedItem.note.User.Username)
 					return m, m.textarea.Focus()
 				}
-			case "r":
+			case key.Matches(msg, m.keys.React):
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					cmds = append(cmds, m.createReactionCmd(selectedItem.note.ID, "❤️"))
 				}
-			case "t":
+			case key.Matches(msg, m.keys.Renote):
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					cmds = append(cmds, m.createRenoteCmd(selectedItem.note.ID))
 				}
-			case "enter":
+			case key.Matches(msg, m.keys.Detail):
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.loading = true
 					m.selectedNote = &selectedItem.note
@@ -80,7 +81,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					cmds = append(cmds, tea.Batch(batchCmds...))
 				}
-			case "h", "l", "s", "g":
+			case key.Matches(msg, m.keys.Switch):
 				key := msg.String()
 				timelineMap := map[string]string{"h": "home", "l": "local", "s": "social", "g": "global"}
 				if m.timeline != timelineMap[key] {
@@ -90,12 +91,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "posting":
-			switch msg.String() {
-			case "ctrl+s":
+			switch {
+			case key.Matches(msg, m.keys.PostSubmit):
 				m.loading = true
 				cmds = append(cmds, m.spinner.Tick, m.createNoteCmd(m.textarea.Value(), m.replyToId))
 				return m, tea.Batch(cmds...)
-			case "esc":
+			case key.Matches(msg, m.keys.PostCancel):
 				m.mode = "timeline"
 				m.textarea.Reset()
 				m.replyToId = ""
@@ -103,21 +104,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "detail":
-			switch msg.String() {
-			case "ctrl+c", "q", "esc":
+			switch {
+			case key.Matches(msg, m.keys.DetailQuit):
 				m.mode = "timeline"
 				m.selectedNote = nil
 				m.parentNote = nil
 				return m, nil
-			case "R":
+			case key.Matches(msg, m.keys.DetailReply):
 				m.mode = "posting"
 				m.replyToId = m.selectedNote.ID
 				m.replyToNote = m.selectedNote
 				m.textarea.Placeholder = fmt.Sprintf("Replying to @%s...", m.selectedNote.User.Username)
 				return m, m.textarea.Focus()
-			case "r":
+			case key.Matches(msg, m.keys.DetailReact):
 				cmds = append(cmds, m.createReactionCmd(m.selectedNote.ID, "❤️"))
-			case "t":
+			case key.Matches(msg, m.keys.DetailRenote):
 				cmds = append(cmds, m.createRenoteCmd(m.selectedNote.ID))
 			}
 		}

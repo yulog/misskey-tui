@@ -12,11 +12,92 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// --- Keys ---
+
+type keyMap struct {
+	// For timeline
+	Post   key.Binding
+	Reply  key.Binding
+	React  key.Binding
+	Renote key.Binding
+	Detail key.Binding
+	Switch key.Binding
+	Quit   key.Binding
+
+	// For posting
+	PostSubmit key.Binding
+	PostCancel key.Binding
+
+	// For detail
+	DetailReply  key.Binding
+	DetailReact  key.Binding
+	DetailRenote key.Binding
+	DetailQuit   key.Binding
+}
+
+func newKeyMap() keyMap {
+	return keyMap{
+		Post: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "post"),
+		),
+		Reply: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "reply"),
+		),
+		React: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "react"),
+		),
+		Renote: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "renote"),
+		),
+		Detail: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "detail"),
+		),
+		Switch: key.NewBinding(
+			key.WithKeys("h", "l", "s", "g"),
+			key.WithHelp("h/l/s/g", "switch"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("ctrl+c", "q"),
+			key.WithHelp("q/ctrl+c", "quit"),
+		),
+		PostSubmit: key.NewBinding(
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "post"),
+		),
+		PostCancel: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "cancel"),
+		),
+		DetailReply: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "reply"),
+		),
+		DetailReact: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "react"),
+		),
+		DetailRenote: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "renote"),
+		),
+		DetailQuit: key.NewBinding(
+			key.WithKeys("ctrl+c", "q", "esc"),
+			key.WithHelp("q/esc", "quit"),
+		),
+	}
+}
+
 // --- Model ---
 
 type model struct {
 	config        *Config
 	client        *http.Client
+	keys          keyMap
 	list          list.Model
 	detailList    list.Model
 	textarea      textarea.Model
@@ -37,6 +118,8 @@ type model struct {
 // --- Initialization ---
 
 func newModel(config *Config) model {
+	keys := newKeyMap()
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -49,12 +132,12 @@ func newModel(config *Config) model {
 	mainList.SetShowTitle(false)
 	mainList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "post")),
-			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reply")),
-			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
-			key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "renote")),
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "detail")),
-			key.NewBinding(key.WithKeys("h/l/s/g"), key.WithHelp("h/l/s/g", "switch")),
+			keys.Post,
+			keys.Reply,
+			keys.React,
+			keys.Renote,
+			keys.Detail,
+			keys.Switch,
 		}
 	}
 
@@ -62,15 +145,16 @@ func newModel(config *Config) model {
 	detailList.SetShowTitle(false)
 	detailList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "reply")),
-			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "react")),
-			key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "renote")),
+			keys.DetailReply,
+			keys.DetailReact,
+			keys.DetailRenote,
 		}
 	}
 
 	return model{
 		config:     config,
 		client:     &http.Client{Timeout: 10 * time.Second},
+		keys:       keys,
 		list:       mainList,
 		detailList: detailList,
 		textarea:   ta,
