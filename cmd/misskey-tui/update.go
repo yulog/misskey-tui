@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -17,6 +18,12 @@ type childrenNotesLoadedMsg struct{ notes []Note }
 type notePostedMsg struct{ err error }
 type noteRenotedMsg struct{ err error }
 type reactionResultMsg struct{ err error }
+type emojisLoadedMsg struct{ emojis []Emoji }
+type metaLoadedMsg struct{ meta *Meta }
+type emojiLoadedMsg struct {
+	name  string
+	sixel []byte
+}
 type clearStatusMsg struct{}
 type errorMsg struct{ err error }
 
@@ -79,6 +86,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					batchCmds = append(batchCmds, m.spinner.Tick, m.fetchNoteChildrenCmd(m.selectedNote.ID))
 					if m.selectedNote.ReplyId != "" {
 						batchCmds = append(batchCmds, m.fetchParentNoteCmd(m.selectedNote.ReplyId))
+					}
+					// Download emojis
+					for reaction := range m.selectedNote.Reactions {
+						emojiName := strings.Trim(reaction, ":")
+						emojiName = strings.TrimSuffix(emojiName, "@.")
+						if _, ok := m.emojis[emojiName]; ok {
+							if _, cached := m.emojiCache[emojiName]; !cached {
+								batchCmds = append(batchCmds, m.downloadEmojiCmd(emojiName))
+							}
+						}
 					}
 					cmds = append(cmds, tea.Batch(batchCmds...))
 				}
@@ -171,6 +188,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMessage = "Reacted with ❤️"
 		}
 		cmds = append(cmds, tea.Tick(3*time.Second, func(t time.Time) tea.Msg { return clearStatusMsg{} }))
+
+	case metaLoadedMsg:
+		m.mediaProxy = msg.meta.MediaProxy
+		return m, nil
+
+	case emojisLoadedMsg:
+		for _, emoji := range msg.emojis {
+			m.emojis[emoji.Name] = emoji.URL
+		}
+		return m, nil
+
+	case emojiLoadedMsg:
+		m.emojiCache[msg.name] = msg.sixel
+		return m, nil
 
 	case clearStatusMsg:
 		m.statusMessage = ""

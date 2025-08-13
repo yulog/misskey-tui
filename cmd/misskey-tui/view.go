@@ -51,9 +51,24 @@ func (m *model) View() string {
 		noteContent.WriteString(m.selectedNote.Text)
 		noteContent.WriteString("\n\n")
 
+		// Reactions
 		var reactions []string
+		// A Sixel image of 16x16 seems to be about 2 cells wide.
+		// We leave a margin of 4 cells.
+		maxEmojis := (m.width - 4) / 2
+		count := 0
 		for r, c := range m.selectedNote.Reactions {
-			reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
+			if count >= maxEmojis {
+				reactions = append(reactions, "...")
+				break
+			}
+			emojiName := strings.Trim(r, ":")
+			if sixel, ok := m.emojiCache[emojiName]; ok {
+				reactions = append(reactions, fmt.Sprintf("%s %d", string(sixel), c))
+			} else {
+				reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
+			}
+			count++
 		}
 		reactionsStr := strings.Join(reactions, " | ")
 

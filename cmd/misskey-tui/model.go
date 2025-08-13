@@ -114,6 +114,9 @@ type model struct {
 	detailList    list.Model
 	textarea      textarea.Model
 	spinner       spinner.Model
+	emojis        map[string]string
+	mediaProxy    string
+	emojiCache    map[string][]byte
 	timeline      string // "home", "local", "social", "global"
 	mode          string // "timeline", "posting", "detail"
 	replyToId     string // ID of the note being replied to
@@ -175,6 +178,8 @@ func newModel(config *Config) model {
 		detailList: detailList,
 		textarea:   ta,
 		spinner:    s,
+		emojis:     make(map[string]string),
+		emojiCache: make(map[string][]byte),
 		timeline:   "home",
 		mode:       "timeline",
 		loading:    true,
@@ -182,5 +187,5 @@ func newModel(config *Config) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.fetchTimelineCmd())
+	return tea.Batch(m.spinner.Tick, m.fetchTimelineCmd(), m.fetchMetaCmd(), m.fetchEmojisCmd())
 }
