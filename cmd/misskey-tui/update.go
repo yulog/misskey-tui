@@ -31,6 +31,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.onWindowSizeChanged(msg)
+		m.help.Width = msg.Width
 		return m, nil
 
 	case tea.KeyMsg:
@@ -189,6 +190,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		case "posting":
 			m.textarea, cmd = m.textarea.Update(msg)
+			m.help, cmd = m.help.Update(msg)
 			cmds = append(cmds, cmd)
 		case "detail":
 			m.detailList, cmd = m.detailList.Update(msg)

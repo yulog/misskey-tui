@@ -28,8 +28,7 @@ func (m *model) View() string {
 		}
 		viewContent.WriteString(m.textarea.View())
 		viewContent.WriteString("\n\n")
-		help := "(Ctrl+S to post, Esc to cancel)"
-		viewContent.WriteString(help)
+		viewContent.WriteString(m.help.View(m.keys))
 		dialog := dialogBoxStyle.Render(viewContent.String())
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog)
 	}

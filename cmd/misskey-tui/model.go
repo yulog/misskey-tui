@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -33,6 +34,16 @@ type keyMap struct {
 	DetailReact  key.Binding
 	DetailRenote key.Binding
 	DetailQuit   key.Binding
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.PostSubmit, k.PostCancel}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.PostSubmit, k.PostCancel},
+	}
 }
 
 func newKeyMap() keyMap {
@@ -98,6 +109,7 @@ type model struct {
 	config        *Config
 	client        *http.Client
 	keys          keyMap
+	help          help.Model
 	list          list.Model
 	detailList    list.Model
 	textarea      textarea.Model
@@ -151,10 +163,14 @@ func newModel(config *Config) model {
 		}
 	}
 
+	h := help.New()
+	h.ShowAll = true
+
 	return model{
 		config:     config,
 		client:     &http.Client{Timeout: 10 * time.Second},
 		keys:       keys,
+		help:       h,
 		list:       mainList,
 		detailList: detailList,
 		textarea:   ta,
