@@ -59,8 +59,14 @@ func (m *model) View() string {
 		if m.parentNote != nil {
 			parentAuthor := fmt.Sprintf("Replying to @%s", m.parentNote.User.Username)
 			parentInfo := metadataStyle.Render(parentAuthor)
-			parentText := m.parentNote.Text
-			quote := fmt.Sprintf("%s\n%s", parentInfo, parentText)
+
+			textWidth := m.width - 7
+			if textWidth < 0 {
+				textWidth = 0
+			}
+			wrappedParentText := lipgloss.NewStyle().Width(textWidth).Render(m.parentNote.Text)
+
+			quote := fmt.Sprintf("%s\n%s", parentInfo, wrappedParentText)
 			parentView = quoteBoxStyle.Render(quote)
 		}
 
@@ -68,7 +74,14 @@ func (m *model) View() string {
 		var noteContent strings.Builder
 		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *m.selectedNote}.Title()))
 		noteContent.WriteString("\n")
-		noteContent.WriteString(m.selectedNote.Text)
+
+		textWidth := m.width - 8
+		if textWidth < 0 {
+			textWidth = 0
+		}
+		wrappedText := lipgloss.NewStyle().Width(textWidth).Render(m.selectedNote.Text)
+		noteContent.WriteString(wrappedText)
+
 		noteContent.WriteString("\n\n")
 
 		heartCount := 0
