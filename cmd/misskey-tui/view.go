@@ -13,10 +13,7 @@ func (m *model) statusBarView() string {
 	statusLeft := statusMessageStyle.Render(m.statusMessage)
 	statusRight := statusMessageStyle.Render(userInfo)
 
-	spacerWidth := m.width - lipgloss.Width(statusLeft) - lipgloss.Width(statusRight)
-	if spacerWidth < 0 {
-			spacerWidth = 0
-		}
+	spacerWidth := max(m.width-lipgloss.Width(statusLeft)-lipgloss.Width(statusRight), 0)
 
 	status := lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -60,10 +57,7 @@ func (m *model) View() string {
 			parentAuthor := fmt.Sprintf("Replying to @%s", m.parentNote.User.Username)
 			parentInfo := metadataStyle.Render(parentAuthor)
 
-			textWidth := m.width - 7
-			if textWidth < 0 {
-				textWidth = 0
-			}
+			textWidth := max(m.width-7, 0)
 			wrappedParentText := lipgloss.NewStyle().Width(textWidth).Render(m.parentNote.Text)
 
 			quote := fmt.Sprintf("%s\n%s", parentInfo, wrappedParentText)
@@ -75,10 +69,7 @@ func (m *model) View() string {
 		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *m.selectedNote}.Title()))
 		noteContent.WriteString("\n")
 
-		textWidth := m.width - 8
-		if textWidth < 0 {
-			textWidth = 0
-		}
+		textWidth := max(m.width-8, 0)
 		wrappedText := lipgloss.NewStyle().Width(textWidth).Render(m.selectedNote.Text)
 		noteContent.WriteString(wrappedText)
 
@@ -125,10 +116,7 @@ func (m *model) View() string {
 		mainNoteHeight := lipgloss.Height(mainNoteView)
 		repliesHeaderHeight := lipgloss.Height(repliesHeaderStyle.Render("Replies"))
 		statusHeight := lipgloss.Height(status)
-		listHeight := m.height - parentHeight - mainNoteHeight - repliesHeaderHeight - statusHeight
-		if listHeight < 0 {
-			listHeight = 0
-		}
+		listHeight := max(m.height-parentHeight-mainNoteHeight-repliesHeaderHeight-statusHeight, 0)
 		m.detailList.SetHeight(listHeight)
 
 		// 3. Replies
