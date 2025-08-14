@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -77,13 +79,13 @@ func (m *model) View() string {
 
 		heartCount := 0
 		otherReactions := []string{}
-		for r, c := range m.selectedNote.Reactions {
+		for _, r := range slices.Sorted(maps.Keys(m.selectedNote.Reactions)) {
 			isCustomEmoji := strings.HasPrefix(r, ":") && strings.HasSuffix(r, ":")
 
 			if r == "❤️" || isCustomEmoji {
-				heartCount += c
+				heartCount += m.selectedNote.Reactions[r]
 			} else {
-				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, c))
+				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, m.selectedNote.Reactions[r]))
 			}
 		}
 
