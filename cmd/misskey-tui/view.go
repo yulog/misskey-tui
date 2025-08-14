@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,11 +55,15 @@ func (m *model) View() string {
 
 		// Reactions
 		var reactions []string
+		var reactionsContent strings.Builder
 		// A Sixel image of 16x16 seems to be about 2 cells wide.
 		// We leave a margin of 4 cells.
-		maxEmojis := (m.width - 4) / 2
+		// maxEmojis := (m.width - 4) / 2
+		maxEmojis := 4
 		count := 0
-		for r, c := range m.selectedNote.Reactions {
+		// reactionsContent.WriteString("\033[s")
+		// for r, c := range m.selectedNote.Reactions {
+		for _, r := range slices.Sorted(maps.Keys(m.selectedNote.Reactions)) {
 			if count >= maxEmojis {
 				reactions = append(reactions, "...")
 				break
@@ -65,13 +71,24 @@ func (m *model) View() string {
 			emojiName := strings.Trim(r, ":")
 			emojiName = strings.TrimSuffix(emojiName, "@.")
 			if sixel, ok := m.emojiCache[emojiName]; ok {
-				reactions = append(reactions, fmt.Sprintf("%s %d", string(sixel), c))
+				// reactions = append(reactions, fmt.Sprintf("\033[%dC%s %d", noteContent.Len(), string(sixel), c))
+				reactionsContent.WriteString(fmt.Sprintf("   %d", m.selectedNote.Reactions[r]))
+				reactionsContent.WriteString("\033[s")
+				// reactionsContent.WriteString("\033[1G")
+				reactionsContent.WriteString(fmt.Sprintf("[%d;%dH", strings.Count(noteContent.String(), "\n"), count*2+4))
+				reactionsContent.WriteString(string(sixel))
+				// reactionsContent.WriteString("\n")
+				reactionsContent.WriteString("\033[u")
+				reactionsContent.WriteString("\033[2C")
 			} else {
-				reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
+				// reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
+				reactionsContent.WriteString(fmt.Sprintf("%s %d", r, m.selectedNote.Reactions[r]))
 			}
 			count++
 		}
-		reactionsStr := strings.Join(reactions, " | ")
+		// reactionsContent.WriteString("\033[u")
+		// reactionsContent.WriteString(strings.Repeat(" \n", count))
+		// reactionsStr := strings.Join(reactions, " | ")
 
 		t, err := time.Parse(time.RFC3339, m.selectedNote.CreatedAt)
 		var timeStr string
@@ -81,12 +98,17 @@ func (m *model) View() string {
 
 		countsStr := fmt.Sprintf("Replies: %d, Renotes: %d", m.selectedNote.RepliesCount, m.selectedNote.RenoteCount)
 
-		metaData := lipgloss.JoinVertical(lipgloss.Left,
-			reactionsStr,
+		// Add reactions string first, without lipgloss layouting
+		// noteContent.WriteString(reactionsStr)
+		noteContent.WriteString(reactionsContent.String())
+		noteContent.WriteString("\n")
+
+		// Then, add the rest of the metadata using lipgloss
+		otherMetaData := lipgloss.JoinVertical(lipgloss.Left,
 			metadataStyle.Render(countsStr),
 			metadataStyle.Render(timeStr),
 		)
-		noteContent.WriteString(metaData)
+		noteContent.WriteString(otherMetaData)
 		mainNoteView := detailContainerStyle.Render(noteContent.String())
 
 		// 3. Replies

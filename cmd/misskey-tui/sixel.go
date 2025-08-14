@@ -50,6 +50,9 @@ func downloadAndEncode(client *http.Client, proxyURL string, imageURL string) ([
 
 	// Encode to sixel
 	var buf bytes.Buffer
+	enc := sixel.NewEncoder(&buf)
+	enc.Height = 16
+	enc.Width = 16
 	err = sixel.NewEncoder(&buf).Encode(dst)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode sixel: %w", err)
