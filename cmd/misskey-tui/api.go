@@ -28,19 +28,6 @@ type User struct {
 	Name     string `json:"name"`
 }
 
-type Emoji struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
-
-type EmojisResponse struct {
-	Emojis []Emoji `json:"emojis"`
-}
-
-type Meta struct {
-	MediaProxy string `json:"mediaProxy"`
-}
-
 // --- Config ---
 
 type Config struct {
@@ -63,71 +50,6 @@ func loadConfig() (*Config, error) {
 }
 
 // --- API Functions ---
-
-func fetchMeta(client *http.Client, config *Config) (*Meta, error) {
-	endpoint, err := url.JoinPath(config.InstanceURL, "/api/meta")
-	if err != nil {
-		return nil, err
-	}
-
-	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken})
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
-	var meta Meta
-	if err := json.NewDecoder(resp.Body).Decode(&meta); err != nil {
-		return nil, err
-	}
-
-	return &meta, nil
-}
-
-func fetchEmojis(client *http.Client, config *Config) (*EmojisResponse, error) {
-	endpoint, err := url.JoinPath(config.InstanceURL, "/api/emojis")
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
-	var emojis EmojisResponse
-	if err := json.NewDecoder(resp.Body).Decode(&emojis); err != nil {
-		return nil, err
-	}
-
-	return &emojis, nil
-}
-
 
 func fetchTimeline(client *http.Client, config *Config, timelineType string) ([]Note, error) {
 	endpointMap := map[string]string{

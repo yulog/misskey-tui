@@ -59,36 +59,3 @@ func (m model) createReactionCmd(noteId string, reaction string) tea.Cmd {
 		return reactionResultMsg{err: err}
 	}
 }
-
-func (m model) fetchMetaCmd() tea.Cmd {
-	return func() tea.Msg {
-		meta, err := fetchMeta(m.client, m.config)
-		if err != nil {
-			return errorMsg{err: err}
-		}
-		return metaLoadedMsg{meta: meta}
-	}
-}
-
-func (m model) fetchEmojisCmd() tea.Cmd {
-	return func() tea.Msg {
-		emojis, err := fetchEmojis(m.client, m.config)
-		if err != nil {
-			return errorMsg{err: err}
-		}
-		return emojisLoadedMsg{emojis: emojis.Emojis}
-	}
-}
-
-func (m model) downloadEmojiCmd(emojiName string) tea.Cmd {
-	return func() tea.Msg {
-		if url, ok := m.emojis[emojiName]; ok {
-			sixel, err := downloadAndEncode(m.client, m.mediaProxy, url)
-			if err != nil {
-				return errorMsg{err: err}
-			}
-			return emojiLoadedMsg{name: emojiName, sixel: sixel}
-		}
-		return nil
-	}
-}
