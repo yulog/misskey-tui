@@ -5,9 +5,9 @@ import "github.com/charmbracelet/lipgloss"
 var (
 	docStyle           = lipgloss.NewStyle().Margin(0, 2)
 	tabStyle           = lipgloss.NewStyle().Padding(0, 1)
-	activeTabStyle     = tabStyle.Foreground(lipgloss.Color("205")).Bold(true).Underline(true)
+	activeTabStyle     = tabStyle.Foreground(lipgloss.Color("#86b300")).Bold(true).Underline(true)
 	inactiveTabStyle   = tabStyle.Foreground(lipgloss.Color("240"))
-	statusMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
+	statusMessageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#86b300")).Bold(true)
 	dialogBoxStyle     = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("240")).
@@ -20,7 +20,7 @@ var (
 
 	detailContainerStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("205")).
+				BorderForeground(lipgloss.Color("#86b300")).
 				Padding(1, 1)
 
 	metadataStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
@@ -30,4 +30,9 @@ var (
 				Padding(0, 1).
 				BorderStyle(lipgloss.NormalBorder()).
 				BorderBottom(true)
+
+	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#86b300"))
+
+	listDelegateSelectedTitleColor = lipgloss.Color("#86b300")
+	listDelegateSelectedDescColor  = lipgloss.Color("#688a00ff")
 )

@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // --- Keys ---
@@ -137,13 +136,17 @@ func newModel(config *Config, user *User) model {
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = spinnerStyle
 
 	ta := textarea.New()
 	ta.Placeholder = "What's on your mind?"
 	ta.Focus()
 
-	mainList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(listDelegateSelectedTitleColor).BorderLeftForeground(listDelegateSelectedTitleColor)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(listDelegateSelectedDescColor).BorderLeftForeground(listDelegateSelectedTitleColor)
+
+	mainList := list.New([]list.Item{}, delegate, 0, 0)
 	mainList.SetShowTitle(false)
 	mainList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
@@ -156,7 +159,7 @@ func newModel(config *Config, user *User) model {
 		}
 	}
 
-	detailList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	detailList := list.New([]list.Item{}, delegate, 0, 0)
 	detailList.SetShowTitle(false)
 	detailList.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
