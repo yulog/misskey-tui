@@ -8,6 +8,26 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func (m *model) statusBarView() string {
+	userInfo := fmt.Sprintf("%s@%s", m.username, m.hostname)
+	statusLeft := statusMessageStyle.Render(m.statusMessage)
+	statusRight := statusMessageStyle.Render(userInfo)
+
+	spacerWidth := m.width - lipgloss.Width(statusLeft) - lipgloss.Width(statusRight)
+	if spacerWidth < 0 {
+			spacerWidth = 0
+		}
+
+	status := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		statusLeft,
+		lipgloss.NewStyle().Width(spacerWidth).Render(""),
+		statusRight,
+	)
+
+	return status
+}
+
 func (m *model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("\nAn error occurred: %s\n\nPress any key to return.", m.err)
@@ -99,21 +119,7 @@ func (m *model) View() string {
 			repliesView,
 		)
 
-		userInfo := fmt.Sprintf("%s@%s", m.username, m.hostname)
-		statusLeft := statusMessageStyle.Render(m.statusMessage)
-		statusRight := statusMessageStyle.Render(userInfo)
-
-		spacerWidth := m.width - lipgloss.Width(statusLeft) - lipgloss.Width(statusRight)
-		if spacerWidth < 0 {
-			spacerWidth = 0
-		}
-
-		status := lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			statusLeft,
-			lipgloss.NewStyle().Width(spacerWidth).Render(""),
-			statusRight,
-		)
+		status := m.statusBarView()
 
 		return lipgloss.JoinVertical(lipgloss.Left, docStyle.Render(finalView), status)
 	}
@@ -134,21 +140,7 @@ func (m *model) View() string {
 
 	mainContent := docStyle.Render(m.list.View())
 
-	userInfo := fmt.Sprintf("%s@%s", m.username, m.hostname)
-	statusLeft := statusMessageStyle.Render(m.statusMessage)
-	statusRight := statusMessageStyle.Render(userInfo)
-
-	spacerWidth := m.width - lipgloss.Width(statusLeft) - lipgloss.Width(statusRight)
-	if spacerWidth < 0 {
-			spacerWidth = 0
-		}
-
-	status := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		statusLeft,
-		lipgloss.NewStyle().Width(spacerWidth).Render(""),
-		statusRight,
-	)
+	status := m.statusBarView()
 
 	return tabHeader + "\n" + mainContent + "\n" + status
 }
