@@ -1,4 +1,4 @@
-module misskey-tui
+module github.com/yulog/misskey-tui
 
 go 1.24.5
 
