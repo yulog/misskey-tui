@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -14,7 +16,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	model := newModel(config)
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	user, err := fetchMe(client, config)
+	if err != nil {
+		fmt.Printf("Failed to fetch user info: %v\n", err)
+		os.Exit(1)
+	}
+
+	model := newModel(config, user)
+	model.client = client
 
 	p := tea.NewProgram(&model, tea.WithAltScreen())
 

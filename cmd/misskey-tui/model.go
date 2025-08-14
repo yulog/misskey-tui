@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -121,6 +122,8 @@ type model struct {
 	selectedNote  *Note
 	parentNote    *Note // The parent of the selected note
 	statusMessage string
+	username      string
+	hostname      string
 	width         int
 	height        int
 	loading       bool
@@ -129,7 +132,7 @@ type model struct {
 
 // --- Initialization ---
 
-func newModel(config *Config) model {
+func newModel(config *Config, user *User) model {
 	keys := newKeyMap()
 
 	s := spinner.New()
@@ -166,6 +169,11 @@ func newModel(config *Config) model {
 	h := help.New()
 	h.ShowAll = true
 
+	instanceURL, err := url.Parse(config.InstanceURL)
+	if err != nil {
+		instanceURL.Host = ""
+	}
+
 	return model{
 		config:     config,
 		client:     &http.Client{Timeout: 10 * time.Second},
@@ -178,6 +186,8 @@ func newModel(config *Config) model {
 		timeline:   "home",
 		mode:       "timeline",
 		loading:    true,
+		username:   user.Username,
+		hostname:   instanceURL.Host,
 	}
 }
 

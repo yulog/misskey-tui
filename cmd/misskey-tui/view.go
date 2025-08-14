@@ -99,7 +99,23 @@ func (m *model) View() string {
 			repliesView,
 		)
 
-		return docStyle.Render(finalView)
+		userInfo := fmt.Sprintf("%s@%s", m.username, m.hostname)
+		statusLeft := statusMessageStyle.Render(m.statusMessage)
+		statusRight := statusMessageStyle.Render(userInfo)
+
+		spacerWidth := m.width - lipgloss.Width(statusLeft) - lipgloss.Width(statusRight)
+		if spacerWidth < 0 {
+			spacerWidth = 0
+		}
+
+		status := lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			statusLeft,
+			lipgloss.NewStyle().Width(spacerWidth).Render(""),
+			statusRight,
+		)
+
+		return lipgloss.JoinVertical(lipgloss.Left, docStyle.Render(finalView), status)
 	}
 
 	// Timeline view
@@ -118,6 +134,21 @@ func (m *model) View() string {
 
 	mainContent := docStyle.Render(m.list.View())
 
-	status := statusMessageStyle.Render(m.statusMessage)
+	userInfo := fmt.Sprintf("%s@%s", m.username, m.hostname)
+	statusLeft := statusMessageStyle.Render(m.statusMessage)
+	statusRight := statusMessageStyle.Render(userInfo)
+
+	spacerWidth := m.width - lipgloss.Width(statusLeft) - lipgloss.Width(statusRight)
+	if spacerWidth < 0 {
+			spacerWidth = 0
+		}
+
+	status := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		statusLeft,
+		lipgloss.NewStyle().Width(spacerWidth).Render(""),
+		statusRight,
+	)
+
 	return tabHeader + "\n" + mainContent + "\n" + status
 }

@@ -264,3 +264,38 @@ func createRenote(client *http.Client, config *Config, noteId string) error {
 
 	return nil
 }
+
+func fetchMe(client *http.Client, config *Config) (*User, error) {
+	endpoint, err := url.JoinPath(config.InstanceURL, "/api/i")
+	if err != nil {
+		return nil, err
+	}
+
+	reqBody, err := json.Marshal(map[string]any{"i": config.AccessToken})
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed: %s", resp.Status)
+	}
+
+	var user User
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
