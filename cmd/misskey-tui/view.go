@@ -119,6 +119,18 @@ func (m *model) View() string {
 		noteContent.WriteString(metaData)
 		mainNoteView := detailContainerStyle.Render(noteContent.String())
 
+		// Calculate heights and set list height
+		status := m.statusBarView()
+		parentHeight := lipgloss.Height(parentView)
+		mainNoteHeight := lipgloss.Height(mainNoteView)
+		repliesHeaderHeight := lipgloss.Height(repliesHeaderStyle.Render("Replies"))
+		statusHeight := lipgloss.Height(status)
+		listHeight := m.height - parentHeight - mainNoteHeight - repliesHeaderHeight - statusHeight
+		if listHeight < 0 {
+			listHeight = 0
+		}
+		m.detailList.SetHeight(listHeight)
+
 		// 3. Replies
 		repliesView := lipgloss.JoinVertical(lipgloss.Left,
 			repliesHeaderStyle.Render("Replies"),
@@ -131,8 +143,6 @@ func (m *model) View() string {
 			mainNoteView,
 			repliesView,
 		)
-
-		status := m.statusBarView()
 
 		return lipgloss.JoinVertical(lipgloss.Left, docStyle.Render(finalView), status)
 	}
