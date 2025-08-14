@@ -49,6 +49,34 @@ func loadConfig() (*Config, error) {
 	return &config, nil
 }
 
+// --- API Helper ---
+
+func postRequest(client *http.Client, endpoint string, body []byte, responseData any) error {
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("API request to %s failed: %s", endpoint, resp.Status)
+	}
+
+	if responseData != nil && resp.StatusCode != http.StatusNoContent {
+		if err := json.NewDecoder(resp.Body).Decode(responseData); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // --- API Functions ---
 
 func fetchTimeline(client *http.Client, config *Config, timelineType string) ([]Note, error) {
@@ -68,28 +96,9 @@ func fetchTimeline(client *http.Client, config *Config, timelineType string) ([]
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
 	var notes []Note
-	if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
-		return nil, err
-	}
-
-	return notes, nil
+	err = postRequest(client, endpoint, reqBody, &notes)
+	return notes, err
 }
 
 func createNote(client *http.Client, config *Config, text string, replyId string) error {
@@ -111,23 +120,7 @@ func createNote(client *http.Client, config *Config, text string, replyId string
 		return err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
-	return nil
+	return postRequest(client, endpoint, reqBody, nil)
 }
 
 func createReaction(client *http.Client, config *Config, noteId string, reaction string) error {
@@ -141,23 +134,7 @@ func createReaction(client *http.Client, config *Config, noteId string, reaction
 		return err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
-	return nil
+	return postRequest(client, endpoint, reqBody, nil)
 }
 
 func fetchNoteChildren(client *http.Client, config *Config, noteId string) ([]Note, error) {
@@ -171,28 +148,9 @@ func fetchNoteChildren(client *http.Client, config *Config, noteId string) ([]No
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
 	var notes []Note
-	if err := json.NewDecoder(resp.Body).Decode(&notes); err != nil {
-		return nil, err
-	}
-
-	return notes, nil
+	err = postRequest(client, endpoint, reqBody, &notes)
+	return notes, err
 }
 
 func fetchSingleNote(client *http.Client, config *Config, noteId string) (*Note, error) {
@@ -206,28 +164,9 @@ func fetchSingleNote(client *http.Client, config *Config, noteId string) (*Note,
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
 	var note Note
-	if err := json.NewDecoder(resp.Body).Decode(&note); err != nil {
-		return nil, err
-	}
-
-	return &note, nil
+	err = postRequest(client, endpoint, reqBody, &note)
+	return &note, err
 }
 
 func createRenote(client *http.Client, config *Config, noteId string) error {
@@ -246,23 +185,7 @@ func createRenote(client *http.Client, config *Config, noteId string) error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
-	return nil
+	return postRequest(client, endpoint, reqBody, nil)
 }
 
 func fetchMe(client *http.Client, config *Config) (*User, error) {
@@ -276,26 +199,7 @@ func fetchMe(client *http.Client, config *Config) (*User, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed: %s", resp.Status)
-	}
-
 	var user User
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	err = postRequest(client, endpoint, reqBody, &user)
+	return &user, err
 }
