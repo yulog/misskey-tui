@@ -51,10 +51,23 @@ func (m *model) View() string {
 		noteContent.WriteString(m.selectedNote.Text)
 		noteContent.WriteString("\n\n")
 
-		var reactions []string
+		heartCount := 0
+		otherReactions := []string{}
 		for r, c := range m.selectedNote.Reactions {
-			reactions = append(reactions, fmt.Sprintf("%s %d", r, c))
+			isCustomEmoji := strings.HasPrefix(r, ":") && strings.HasSuffix(r, ":")
+
+			if r == "❤️" || isCustomEmoji {
+				heartCount += c
+			} else {
+				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, c))
+			}
 		}
+
+		var reactions []string
+		if heartCount > 0 {
+			reactions = append(reactions, fmt.Sprintf("❤️ %d", heartCount))
+		}
+		reactions = append(reactions, otherReactions...)
 		reactionsStr := strings.Join(reactions, " | ")
 
 		t, err := time.Parse(time.RFC3339, m.selectedNote.CreatedAt)
