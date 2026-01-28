@@ -29,6 +29,10 @@ A TUI client for Misskey.
     ```bash
     go run ./cmd/misskey-tui
     ```
+    or using nix
+    ```bash
+    nix run
+    ```
 
 ## Keybindings
 
