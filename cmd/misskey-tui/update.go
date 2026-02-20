@@ -79,10 +79,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedItem, ok := m.list.SelectedItem().(item); ok {
 					m.loading = true
 					m.selectedNote = &selectedItem.note
+
+					// Use target note for children/parent fetching (handle Renote)
+					targetNote := m.selectedNote
+					if targetNote.Renote != nil && targetNote.Text == "" {
+						targetNote = targetNote.Renote
+					}
+
 					var batchCmds []tea.Cmd
-					batchCmds = append(batchCmds, m.spinner.Tick, m.fetchNoteChildrenCmd(m.selectedNote.ID))
-					if m.selectedNote.ReplyId != "" {
-						batchCmds = append(batchCmds, m.fetchParentNoteCmd(m.selectedNote.ReplyId))
+					batchCmds = append(batchCmds, m.spinner.Tick, m.fetchNoteChildrenCmd(targetNote.ID))
+					if targetNote.ReplyId != "" {
+						batchCmds = append(batchCmds, m.fetchParentNoteCmd(targetNote.ReplyId))
 					}
 					cmds = append(cmds, tea.Batch(batchCmds...))
 				}
