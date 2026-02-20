@@ -68,24 +68,38 @@ func (m *model) View() string {
 
 		// 2. Main Note
 		var noteContent strings.Builder
-		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *m.selectedNote}.Title()))
+
+		displayNote := m.selectedNote
+		isRenote := m.selectedNote.Renote != nil && m.selectedNote.Text == ""
+
+		if isRenote {
+			renoterName := m.selectedNote.User.Name
+			if renoterName == "" {
+				renoterName = m.selectedNote.User.Username
+			}
+			noteContent.WriteString(metadataStyle.Render(fmt.Sprintf("Renoted by %s", renoterName)))
+			noteContent.WriteString("\n")
+			displayNote = m.selectedNote.Renote
+		}
+
+		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *displayNote}.Title()))
 		noteContent.WriteString("\n")
 
 		textWidth := max(m.width-8, 0)
-		wrappedText := lipgloss.NewStyle().Width(textWidth).Render(m.selectedNote.Text)
+		wrappedText := lipgloss.NewStyle().Width(textWidth).Render(displayNote.Text)
 		noteContent.WriteString(wrappedText)
 
 		noteContent.WriteString("\n\n")
 
 		heartCount := 0
 		otherReactions := []string{}
-		for _, r := range slices.Sorted(maps.Keys(m.selectedNote.Reactions)) {
+		for _, r := range slices.Sorted(maps.Keys(displayNote.Reactions)) {
 			isCustomEmoji := strings.HasPrefix(r, ":") && strings.HasSuffix(r, ":")
 
 			if r == "❤️" || isCustomEmoji {
-				heartCount += m.selectedNote.Reactions[r]
+				heartCount += displayNote.Reactions[r]
 			} else {
-				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, m.selectedNote.Reactions[r]))
+				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, displayNote.Reactions[r]))
 			}
 		}
 
@@ -96,13 +110,13 @@ func (m *model) View() string {
 		reactions = append(reactions, otherReactions...)
 		reactionsStr := strings.Join(reactions, " | ")
 
-		t, err := time.Parse(time.RFC3339, m.selectedNote.CreatedAt)
+		t, err := time.Parse(time.RFC3339, displayNote.CreatedAt)
 		var timeStr string
 		if err == nil {
 			timeStr = t.Local().Format("2006-01-02 15:04:05")
 		}
 
-		countsStr := fmt.Sprintf("Replies: %d, Renotes: %d", m.selectedNote.RepliesCount, m.selectedNote.RenoteCount)
+		countsStr := fmt.Sprintf("Replies: %d, Renotes: %d", displayNote.RepliesCount, displayNote.RenoteCount)
 
 		metaData := lipgloss.JoinVertical(lipgloss.Left,
 			reactionsStr,

@@ -7,10 +7,35 @@ type item struct {
 }
 
 func (i item) Title() string {
-	if i.note.User.Name != "" {
-		return fmt.Sprintf("%s (@%s)", i.note.User.Name, i.note.User.Username)
+	note := i.note
+	isRenote := note.Renote != nil && note.Text == ""
+	
+	username := note.User.Username
+	name := note.User.Name
+	
+	title := ""
+	if name != "" {
+		title = fmt.Sprintf("%s (@%s)", name, username)
+	} else {
+		title = fmt.Sprintf("@%s", username)
 	}
-	return fmt.Sprintf("@%s", i.note.User.Username)
+
+	if isRenote {
+		return fmt.Sprintf("%s renoted", title)
+	}
+	return title
 }
-func (i item) Description() string { return i.note.Text }
-func (i item) FilterValue() string { return i.note.User.Username }
+
+func (i item) Description() string {
+	if i.note.Renote != nil && i.note.Text == "" {
+		return i.note.Renote.Text
+	}
+	return i.note.Text
+}
+
+func (i item) FilterValue() string {
+	if i.note.Renote != nil && i.note.Text == "" {
+		return i.note.User.Username + " " + i.note.Renote.User.Username
+	}
+	return i.note.User.Username
+}

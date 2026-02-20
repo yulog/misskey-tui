@@ -20,6 +20,7 @@ type Note struct {
 	RenoteCount  int               `json:"renoteCount"`
 	Reactions    map[string]int    `json:"reactions"`
 	ReplyId      string            `json:"replyId,omitempty"`
+	Renote       *Note             `json:"renote,omitempty"`
 }
 
 type User struct {
