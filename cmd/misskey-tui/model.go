@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -113,9 +114,11 @@ type model struct {
 	list          list.Model
 	detailList    list.Model
 	textarea      textarea.Model
+	viewport      viewport.Model
 	spinner       spinner.Model
 	timeline      string // "home", "local", "social", "global"
 	mode          string // "timeline", "posting", "detail"
+	detailFocus   string // "note", "replies"
 	replyToId     string // ID of the note being replied to
 	replyToNote   *Note  // The note being replied to
 	selectedNote  *Note
@@ -178,19 +181,20 @@ func newModel(config *Config, user *User) model {
 	}
 
 	return model{
-		config:     config,
-		client:     &http.Client{Timeout: 10 * time.Second},
-		keys:       keys,
-		help:       h,
-		list:       mainList,
-		detailList: detailList,
-		textarea:   ta,
-		spinner:    s,
-		timeline:   "home",
-		mode:       "timeline",
-		loading:    true,
-		username:   user.Username,
-		hostname:   instanceURL.Host,
+		config:      config,
+		client:      &http.Client{Timeout: 10 * time.Second},
+		keys:        keys,
+		help:        h,
+		list:        mainList,
+		detailList:  detailList,
+		textarea:    ta,
+		spinner:     s,
+		timeline:    "home",
+		mode:        "timeline",
+		loading:     true,
+		username:    user.Username,
+		hostname:    instanceURL.Host,
+		detailFocus: "note",
 	}
 }
 

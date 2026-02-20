@@ -35,4 +35,9 @@ var (
 
 	listDelegateSelectedTitleColor = lipgloss.Color("#86b300")
 	listDelegateSelectedDescColor  = lipgloss.Color("#688a00ff")
+
+	focusedDetailContainerStyle = detailContainerStyle.Copy().
+					BorderForeground(lipgloss.Color("#86b300"))
+	unfocusedDetailContainerStyle = detailContainerStyle.Copy().
+					BorderForeground(lipgloss.Color("240"))
 )

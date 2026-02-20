@@ -2,11 +2,15 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // --- Messages ---
@@ -121,6 +125,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.createReactionCmd(m.selectedNote.ID, "❤️"))
 			case key.Matches(msg, m.keys.DetailRenote):
 				cmds = append(cmds, m.createRenoteCmd(m.selectedNote.ID))
+			case msg.String() == "tab":
+				if m.detailFocus == "note" {
+					m.detailFocus = "replies"
+				} else {
+					m.detailFocus = "note"
+				}
 			}
 		}
 
@@ -140,6 +150,65 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.detailList.SetItems(items)
 		m.mode = "detail"
+		m.detailFocus = "note"
+
+		// Initialize viewport content
+		displayNote := m.selectedNote
+		if displayNote.Renote != nil && displayNote.Text == "" {
+			displayNote = displayNote.Renote
+		}
+
+		var noteContent strings.Builder
+		if m.selectedNote.Renote != nil && m.selectedNote.Text == "" {
+			renoterName := m.selectedNote.User.Name
+			if renoterName == "" {
+				renoterName = m.selectedNote.User.Username
+			}
+			noteContent.WriteString(metadataStyle.Render(fmt.Sprintf("Renoted by %s", renoterName)))
+			noteContent.WriteString("\n")
+		}
+
+		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *displayNote}.Title()))
+		noteContent.WriteString("\n\n")
+		noteContent.WriteString(displayNote.Text)
+		noteContent.WriteString("\n\n")
+
+		// Metadata
+		heartCount := 0
+		otherReactions := []string{}
+		for _, r := range slices.Sorted(maps.Keys(displayNote.Reactions)) {
+			isCustomEmoji := strings.HasPrefix(r, ":") && strings.HasSuffix(r, ":")
+			if r == "❤️" || isCustomEmoji {
+				heartCount += displayNote.Reactions[r]
+			} else {
+				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, displayNote.Reactions[r]))
+			}
+		}
+
+		var reactions []string
+		if heartCount > 0 {
+			reactions = append(reactions, fmt.Sprintf("❤️ %d", heartCount))
+		}
+		reactions = append(reactions, otherReactions...)
+		reactionsStr := strings.Join(reactions, " | ")
+
+		t, err := time.Parse(time.RFC3339, displayNote.CreatedAt)
+		var timeStr string
+		if err == nil {
+			timeStr = t.Local().Format("2006-01-02 15:04:05")
+		}
+
+		countsStr := fmt.Sprintf("Replies: %d, Renotes: %d", displayNote.RepliesCount, displayNote.RenoteCount)
+
+		metaData := lipgloss.JoinVertical(lipgloss.Left,
+			reactionsStr,
+			metadataStyle.Render(countsStr),
+			metadataStyle.Render(timeStr),
+		)
+		noteContent.WriteString(metaData)
+
+		m.viewport.SetContent(noteContent.String())
+		m.viewport.YOffset = 0
 
 	case notePostedMsg:
 		m.loading = false
@@ -193,7 +262,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.help, cmd = m.help.Update(msg)
 			cmds = append(cmds, cmd)
 		case "detail":
-			m.detailList, cmd = m.detailList.Update(msg)
+			if m.detailFocus == "note" {
+				m.viewport, cmd = m.viewport.Update(msg)
+			} else {
+				m.detailList, cmd = m.detailList.Update(msg)
+			}
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -207,5 +280,9 @@ func (m *model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 	h, v := docStyle.GetFrameSize()
 	m.list.SetSize(msg.Width-h, msg.Height-v-3)
 	m.textarea.SetWidth(msg.Width - h - 4)
-	m.detailList.SetSize(msg.Width-h, msg.Height-v-15) // Adjust for detail view
+
+	// Detail view adjustments
+	m.viewport.Width = msg.Width - h - 4
+	m.viewport.Height = (msg.Height - v) / 2
+	m.detailList.SetSize(msg.Width-h, msg.Height-v-(m.viewport.Height+8))
 }

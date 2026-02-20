@@ -2,10 +2,7 @@ package main
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -66,78 +63,36 @@ func (m *model) View() string {
 			parentView = quoteBoxStyle.Render(quote)
 		}
 
-		// 2. Main Note
-		var noteContent strings.Builder
-
-		displayNote := m.selectedNote
-		isRenote := m.selectedNote.Renote != nil && m.selectedNote.Text == ""
-
-		if isRenote {
-			renoterName := m.selectedNote.User.Name
-			if renoterName == "" {
-				renoterName = m.selectedNote.User.Username
-			}
-			noteContent.WriteString(metadataStyle.Render(fmt.Sprintf("Renoted by %s", renoterName)))
-			noteContent.WriteString("\n")
-			displayNote = m.selectedNote.Renote
+		// 2. Main Note View
+		// Note Content View
+		var noteStyle lipgloss.Style
+		if m.detailFocus == "note" {
+			noteStyle = focusedDetailContainerStyle
+		} else {
+			noteStyle = unfocusedDetailContainerStyle
 		}
 
-		noteContent.WriteString(lipgloss.NewStyle().Bold(true).Render(item{note: *displayNote}.Title()))
-		noteContent.WriteString("\n")
-
-		textWidth := max(m.width-8, 0)
-		wrappedText := lipgloss.NewStyle().Width(textWidth).Render(displayNote.Text)
-		noteContent.WriteString(wrappedText)
-
-		noteContent.WriteString("\n\n")
-
-		heartCount := 0
-		otherReactions := []string{}
-		for _, r := range slices.Sorted(maps.Keys(displayNote.Reactions)) {
-			isCustomEmoji := strings.HasPrefix(r, ":") && strings.HasSuffix(r, ":")
-
-			if r == "❤️" || isCustomEmoji {
-				heartCount += displayNote.Reactions[r]
-			} else {
-				otherReactions = append(otherReactions, fmt.Sprintf("%s %d", r, displayNote.Reactions[r]))
-			}
-		}
-
-		var reactions []string
-		if heartCount > 0 {
-			reactions = append(reactions, fmt.Sprintf("❤️ %d", heartCount))
-		}
-		reactions = append(reactions, otherReactions...)
-		reactionsStr := strings.Join(reactions, " | ")
-
-		t, err := time.Parse(time.RFC3339, displayNote.CreatedAt)
-		var timeStr string
-		if err == nil {
-			timeStr = t.Local().Format("2006-01-02 15:04:05")
-		}
-
-		countsStr := fmt.Sprintf("Replies: %d, Renotes: %d", displayNote.RepliesCount, displayNote.RenoteCount)
-
-		metaData := lipgloss.JoinVertical(lipgloss.Left,
-			reactionsStr,
-			metadataStyle.Render(countsStr),
-			metadataStyle.Render(timeStr),
-		)
-		noteContent.WriteString(metaData)
-		mainNoteView := detailContainerStyle.Render(noteContent.String())
+		mainNoteView := noteStyle.Render(m.viewport.View())
 
 		// Calculate heights and set list height
 		status := m.statusBarView()
 		parentHeight := lipgloss.Height(parentView)
 		mainNoteHeight := lipgloss.Height(mainNoteView)
-		repliesHeaderHeight := lipgloss.Height(repliesHeaderStyle.Render("Replies"))
+
+		repliesHeaderStr := "Replies"
+		if m.detailFocus == "replies" {
+			repliesHeaderStr = "Replies (Focused)"
+		}
+		repliesHeader := repliesHeaderStyle.Render(repliesHeaderStr)
+		repliesHeaderHeight := lipgloss.Height(repliesHeader)
+
 		statusHeight := lipgloss.Height(status)
 		listHeight := max(m.height-parentHeight-mainNoteHeight-repliesHeaderHeight-statusHeight, 0)
 		m.detailList.SetHeight(listHeight)
 
 		// 3. Replies
 		repliesView := lipgloss.JoinVertical(lipgloss.Left,
-			repliesHeaderStyle.Render("Replies"),
+			repliesHeader,
 			m.detailList.View(),
 		)
 
