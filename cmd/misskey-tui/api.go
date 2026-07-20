@@ -12,21 +12,22 @@ import (
 // --- Misskey API Structs ---
 
 type Note struct {
-	ID           string            `json:"id"`
-	Text         string            `json:"text"`
-	User         User              `json:"user"`
-	CreatedAt    string            `json:"createdAt"`
-	RepliesCount int               `json:"repliesCount"`
-	RenoteCount  int               `json:"renoteCount"`
-	Reactions    map[string]int    `json:"reactions"`
-	ReplyId      string            `json:"replyId,omitempty"`
-	Renote       *Note             `json:"renote,omitempty"`
+	ID           string         `json:"id"`
+	Text         string         `json:"text"`
+	User         User           `json:"user"`
+	CreatedAt    string         `json:"createdAt"`
+	RepliesCount int            `json:"repliesCount"`
+	RenoteCount  int            `json:"renoteCount"`
+	Reactions    map[string]int `json:"reactions"`
+	ReplyId      string         `json:"replyId,omitempty"`
+	Renote       *Note          `json:"renote,omitempty"`
 }
 
 type User struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Name     string `json:"name"`
+	Host     string `json:"host"`
 }
 
 // --- Config ---

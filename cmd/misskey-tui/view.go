@@ -41,6 +41,11 @@ func (m *model) View() string {
 			quote := fmt.Sprintf("%s\n%s", quoteAuthor, quoteText)
 			viewContent.WriteString(quoteBoxStyle.Render(quote))
 			viewContent.WriteString("\n")
+			if m.replyToNote.User.Host != "" {
+				m.textarea.SetValue(fmt.Sprintf("@%s@%s ", m.replyToNote.User.Username, m.replyToNote.User.Host))
+			} else if m.username != m.replyToNote.User.Username {
+				m.textarea.SetValue(fmt.Sprintf("@%s ", m.replyToNote.User.Username))
+			}
 		}
 		viewContent.WriteString(m.textarea.View())
 		viewContent.WriteString("\n\n")
