@@ -9,10 +9,10 @@ type item struct {
 func (i item) Title() string {
 	note := i.note
 	isRenote := note.Renote != nil && note.Text == ""
-	
+
 	username := note.User.Username
 	name := note.User.Name
-	
+
 	title := ""
 	if name != "" {
 		title = fmt.Sprintf("%s (@%s)", name, username)
@@ -29,6 +29,9 @@ func (i item) Title() string {
 func (i item) Description() string {
 	if i.note.Renote != nil && i.note.Text == "" {
 		return i.note.Renote.Text
+	}
+	if i.note.ReplyId != "" {
+		return fmt.Sprintf("↩ %s", i.note.Text)
 	}
 	return i.note.Text
 }
